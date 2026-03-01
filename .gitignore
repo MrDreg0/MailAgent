@@ -1,0 +1,41 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# ReSharper
+*.DotSettings.user
+
+# User-specific files
+**/Properties/launchSettings.json
+**/appsettings.*.json
+
+# Build files
+*.log
+project.lock.json
+project.fragment.lock.json
+
+# NuGet
+*.nupkg
+*.nuget.props
+*.nuget.targets
+
+# Docker
+docker-compose.vs.debug.yml
+docker-compose/tmp/
+
+# Node modules (if any)
+node_modules/
