@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MailAgent.App", "MailAgent.App\MailAgent.App.csproj", "{9385D42F-B16B-4813-A25F-352413B33A50}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MailAgent.Api", "MailAgent.Api\MailAgent.Api.csproj", "{9385D42F-B16B-4813-A25F-352413B33A50}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MailAgent.Database", "MailAgent.Database\MailAgent.Database.csproj", "{29EB4F93-B5FA-49A3-B6D9-85E091475507}"
 EndProject

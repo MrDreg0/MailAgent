@@ -1,10 +1,12 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using MailAgent.Database;
 using MailAgent.Database.PostgreSql;
 using MailKit;
 using MailKit.Net.Imap;
 using MailKit.Security;
+using Microsoft.EntityFrameworkCore;
 using MessageSummaryItems = MailKit.MessageSummaryItems;
 
 var webApplicationBuilder = WebApplication.CreateBuilder(args);
@@ -46,7 +48,7 @@ webApplication.MapGet("/folders", async () =>
   });
 });
 
-webApplication.MapGet("/test-mail", async () =>
+webApplication.MapGet("/test-mail", async (PostgreSqlDataContext db) =>
 {
   using var imapClient = new ImapClient();
 
@@ -54,34 +56,77 @@ webApplication.MapGet("/test-mail", async () =>
   await imapClient.AuthenticateAsync(username, password);
 
   var inboxFolder = imapClient.Inbox;
-  await inboxFolder.OpenAsync(MailKit.FolderAccess.ReadOnly);
+  var releaseFolder = await inboxFolder.GetSubfolderAsync("Releases");
+  await releaseFolder.OpenAsync(FolderAccess.ReadOnly);
+  var folderName = releaseFolder.FullName ?? releaseFolder.Name;
 
   const int takeCount = 5;
 
-  var summaries = await inboxFolder.FetchAsync(
-    inboxFolder.Count - takeCount, 
+  var summaries = await releaseFolder.FetchAsync(
+    releaseFolder.Count - takeCount, 
     -1,
-    new FetchRequest(MessageSummaryItems.UniqueId | MessageSummaryItems.Envelope)
+    new FetchRequest(MessageSummaryItems.UniqueId)
   );
   
   var messageSummaries = new List<object>(capacity: takeCount);
+  var mailCandidates = new List<MailDto>(capacity: takeCount);
+  var imapUids = new List<int>(capacity: takeCount);
 
   foreach (var summary in summaries.TakeLast(takeCount))
   {
-    var message = await inboxFolder.GetMessageAsync(summary.UniqueId);
+    var message = await releaseFolder.GetMessageAsync(summary.UniqueId);
+    var imapUid = checked((int)summary.UniqueId.Id);
+    imapUids.Add(imapUid);
+    var bodyText = message.TextBody;
+    
+    if (string.IsNullOrWhiteSpace(bodyText) && !string.IsNullOrWhiteSpace(message.HtmlBody))
+    {
+      // супер-простой strip html для прототипа
+      bodyText = StripHtml(message.HtmlBody);
+    }
 
     messageSummaries.Add(new
     {
       summary.UniqueId,
       message.MessageId,
       message.Subject,
+      Body = bodyText,
       From = message.From.ToString(),
       Date = message.Date.ToString("u")
     });
+
+    mailCandidates.Add(new MailDto(
+      Id: 0,
+      Folder: folderName,
+      ImapUid: imapUid,
+      MessageId: message.MessageId ?? string.Empty,
+      DateUtc: message.Date.ToUniversalTime(),
+      From: message.From.ToString(),
+      Subject: message.Subject ?? string.Empty,
+      Body: bodyText ?? string.Empty,
+      InsertedAt: DateTimeOffset.UtcNow.ToString("u")
+    ));
   }
 
   await imapClient.DisconnectAsync(true);
 
+  if (imapUids.Count > 0)
+  {
+    var existingUids = await db.Mails
+      .Where(m => m.Folder == folderName && imapUids.Contains(m.ImapUid))
+      .Select(m => m.ImapUid)
+      .ToListAsync();
+
+    var existingSet = existingUids.ToHashSet();
+    var newMails = mailCandidates.Where(m => !existingSet.Contains(m.ImapUid)).ToList();
+
+    if (newMails.Count > 0)
+    {
+      await db.Mails.AddRangeAsync(newMails);
+      await db.SaveChangesAsync();
+    }
+  }
+  
   return Results.Ok(new
   {
     Total = messageSummaries.Count,
@@ -100,7 +145,7 @@ webApplication.MapGet("/digest", async (IHttpClientFactory httpClientFactory) =>
     await imapClient.AuthenticateAsync(username, password);
 
     var inboxFolder = imapClient.Inbox;
-    await inboxFolder.OpenAsync(MailKit.FolderAccess.ReadOnly);
+    await inboxFolder.OpenAsync(FolderAccess.ReadOnly);
 
     var totalMessageCount = inboxFolder.Count;
     var actualTakeCount = Math.Min(takeCount, totalMessageCount);
