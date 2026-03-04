@@ -2,19 +2,18 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MailAgent;
+using MailAgent.Mail;
 using MailAgent.Database;
 using MailAgent.Database.PostgreSql;
-using MailKit;
-using MailKit.Net.Imap;
-using MailKit.Security;
+using MailAgent.Initialization;
 using Microsoft.EntityFrameworkCore;
-using MessageSummaryItems = MailKit.MessageSummaryItems;
 
 var webApplicationBuilder = WebApplication.CreateBuilder(args);
 
 var connectionString = webApplicationBuilder.Configuration.GetConnectionString("Database") ?? throw new InvalidOperationException("Database connection string is missing");
 webApplicationBuilder.Services.AddPostgreSqlDataContext(connectionString);
 webApplicationBuilder.Services.AddSingleton<EmailBodyConverter>();
+webApplicationBuilder.Services.AddMailClient(webApplicationBuilder.Configuration);
 
 webApplicationBuilder.Services.AddHttpClient("ollama", client =>
 {
@@ -23,100 +22,91 @@ webApplicationBuilder.Services.AddHttpClient("ollama", client =>
 });
 
 var webApplication = webApplicationBuilder.Build();
-
-var mailHost = webApplication.Configuration["Host"];
-var mailPort = webApplication.Configuration["Port"] ?? throw new InvalidOperationException("Mail port configuration is missing");
-var username = webApplication.Configuration["Username"];
-var password = webApplication.Configuration["Password"];
-
-webApplication.MapGet("/folders", async () =>
+webApplication.MapGet("/folders", async (IMailClient mailClient) =>
 {
-  using var imapClient = new ImapClient();
+  var folderNames = await mailClient.GetInboxSubfolderNamesAsync();
 
-  await imapClient.ConnectAsync(mailHost, int.Parse(mailPort), SecureSocketOptions.SslOnConnect);
-  await imapClient.AuthenticateAsync(username, password);
-  
-  var inboxFolder = imapClient.Inbox;
-
-  var folders = await inboxFolder.GetSubfoldersAsync();
-  
-  var folderNames = folders.Select(f => f.Name);
-  
-  await imapClient.DisconnectAsync(true);
-  
   return Results.Ok(new
   {
     Folders = folderNames,
   });
 });
 
-webApplication.MapGet("/test-mail", async (PostgreSqlDataContext db, EmailBodyConverter bodyConverter) =>
+webApplication.MapGet("/test-mail", async (PostgreSqlDataContext db, EmailBodyConverter bodyConverter, IMailClient mailClient) =>
 {
-  using var imapClient = new ImapClient();
-
-  await imapClient.ConnectAsync(mailHost, int.Parse(mailPort), SecureSocketOptions.SslOnConnect);
-  await imapClient.AuthenticateAsync(username, password);
-
-  var inboxFolder = imapClient.Inbox;
-  var releaseFolder = await inboxFolder.GetSubfolderAsync("Releases");
-  await releaseFolder.OpenAsync(FolderAccess.ReadOnly);
-  var folderName = releaseFolder.FullName ?? releaseFolder.Name;
-
+  const string folderName = "Releases";
   const int takeCount = 5;
 
-  var summaries = await releaseFolder.FetchAsync(
-    releaseFolder.Count - takeCount, 
-    -1,
-    new FetchRequest(MessageSummaryItems.UniqueId)
-  );
-  
-  var messageSummaries = new List<object>(capacity: takeCount);
-  var mailCandidates = new List<MailDto>(capacity: takeCount);
-  var imapUids = new List<int>(capacity: takeCount);
+  var fetchedMessages = await mailClient.GetLatestFromFolderAsync(folderName, takeCount);
+  var messageSummaries = new List<object>(capacity: fetchedMessages.Count);
+  var mailCandidates = new List<MailDto>(capacity: fetchedMessages.Count);
+  var externalIdHashes = new HashSet<int>(capacity: fetchedMessages.Count);
+  var nonEmptyMessageIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-  foreach (var summary in summaries.TakeLast(takeCount))
+  foreach (var message in fetchedMessages)
   {
-    var message = await releaseFolder.GetMessageAsync(summary.UniqueId);
-    var imapUid = checked((int)summary.UniqueId.Id);
-    imapUids.Add(imapUid);
+    var normalizedMessageId = message.MessageId.Trim();
+    if (!string.IsNullOrWhiteSpace(normalizedMessageId))
+    {
+      nonEmptyMessageIds.Add(normalizedMessageId);
+    }
+
+    var externalIdHash = ToStableInt(message.ExternalId);
+    externalIdHashes.Add(externalIdHash);
+
     var rawBody = message.HtmlBody ?? message.TextBody ?? string.Empty;
     var markdownBody = bodyConverter.ConvertToMarkdown(message.HtmlBody, message.TextBody);
 
     messageSummaries.Add(new
     {
-      summary.UniqueId,
-      message.MessageId,
+      message.ExternalId,
+      MessageId = normalizedMessageId,
       message.Subject,
       Body = markdownBody,
-      From = message.From.ToString(),
-      Date = message.Date.ToString("u")
+      message.From,
+      Date = message.DateUtc.ToString("u")
     });
 
     mailCandidates.Add(new MailDto(
       Id: 0,
       Folder: folderName,
-      ImapUid: imapUid,
-      MessageId: message.MessageId ?? string.Empty,
-      DateUtc: message.Date.ToUniversalTime(),
-      From: message.From.ToString(),
-      Subject: message.Subject ?? string.Empty,
+      ImapUid: externalIdHash,
+      MessageId: normalizedMessageId,
+      DateUtc: message.DateUtc.ToUniversalTime(),
+      From: message.From,
+      Subject: message.Subject,
       RawBody: rawBody,
       MarkdownBody: markdownBody,
       InsertedAt: DateTimeOffset.UtcNow.ToString("u")
     ));
   }
 
-  await imapClient.DisconnectAsync(true);
-
-  if (imapUids.Count > 0)
+  if (mailCandidates.Count > 0)
   {
-    var existingUids = await db.Mails
-      .Where(m => m.Folder == folderName && imapUids.Contains(m.ImapUid))
+    var existingMessageIds = nonEmptyMessageIds.Count == 0
+      ? new List<string>()
+      : await db.Mails
+        .Where(m => m.Folder == folderName && nonEmptyMessageIds.Contains(m.MessageId))
+        .Select(m => m.MessageId)
+        .ToListAsync();
+
+    var existingExternalHashes = await db.Mails
+      .Where(m => m.Folder == folderName && externalIdHashes.Contains(m.ImapUid))
       .Select(m => m.ImapUid)
       .ToListAsync();
 
-    var existingSet = existingUids.ToHashSet();
-    var newMails = mailCandidates.Where(m => !existingSet.Contains(m.ImapUid)).ToList();
+    var existingMessageIdSet = existingMessageIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var existingExternalHashSet = existingExternalHashes.ToHashSet();
+
+    var newMails = mailCandidates.Where(candidate =>
+    {
+      if (!string.IsNullOrWhiteSpace(candidate.MessageId))
+      {
+        return !existingMessageIdSet.Contains(candidate.MessageId);
+      }
+
+      return !existingExternalHashSet.Contains(candidate.ImapUid);
+    }).ToList();
 
     if (newMails.Count > 0)
     {
@@ -124,7 +114,7 @@ webApplication.MapGet("/test-mail", async (PostgreSqlDataContext db, EmailBodyCo
       await db.SaveChangesAsync();
     }
   }
-  
+
   return Results.Ok(new
   {
     Total = messageSummaries.Count,
@@ -132,42 +122,27 @@ webApplication.MapGet("/test-mail", async (PostgreSqlDataContext db, EmailBodyCo
   });
 });
 
-webApplication.MapGet("/digest", async (IHttpClientFactory httpClientFactory, EmailBodyConverter bodyConverter) =>
+webApplication.MapGet("/digest", async (IHttpClientFactory httpClientFactory, EmailBodyConverter bodyConverter, IMailClient mailClient) =>
 {
   const int takeCount = 10;
-  var emails = new List<EmailDto>(capacity: takeCount);
+  var fetchedMessages = await mailClient.GetLatestFromInboxAsync(takeCount);
+  var emails = new List<EmailDto>(capacity: fetchedMessages.Count);
 
-  using (var imapClient = new ImapClient())
+  var emailId = 1;
+  foreach (var message in fetchedMessages)
   {
-    await imapClient.ConnectAsync(mailHost, int.Parse(mailPort), SecureSocketOptions.SslOnConnect);
-    await imapClient.AuthenticateAsync(username, password);
+    var bodyText = bodyConverter.ConvertToMarkdown(message.HtmlBody, message.TextBody);
 
-    var inboxFolder = imapClient.Inbox;
-    await inboxFolder.OpenAsync(FolderAccess.ReadOnly);
+    // ограничим размер тела, чтобы не кормить LLM лишним
+    bodyText = Truncate(bodyText, 1500);
 
-    var totalMessageCount = inboxFolder.Count;
-    var actualTakeCount = Math.Min(takeCount, totalMessageCount);
-
-    for (var indexFromEnd = 0; indexFromEnd < actualTakeCount; indexFromEnd++)
-    {
-      var messageIndex = totalMessageCount - 1 - indexFromEnd;
-      var message = await inboxFolder.GetMessageAsync(messageIndex);
-
-      var bodyText = bodyConverter.ConvertToMarkdown(message.HtmlBody, message.TextBody);
-
-      // ограничим размер тела, чтобы не кормить LLM лишним
-      bodyText = Truncate(bodyText, 1500);
-
-      emails.Add(new EmailDto(
-        indexFromEnd + 1,
-        message.Subject ?? string.Empty,
-        message.From.ToString(),
-        message.Date.UtcDateTime,
-        bodyText
-      ));
-    }
-
-    await imapClient.DisconnectAsync(true);
+    emails.Add(new EmailDto(
+      emailId++,
+      message.Subject,
+      message.From,
+      message.DateUtc.UtcDateTime,
+      bodyText
+    ));
   }
 
   // 1) классификация релизных писем (одним батчем)
@@ -227,6 +202,20 @@ static List<EmailDto> ParseSelectedIdsOrFallback(string classifierResponseText, 
   }
 
   return emails.Where(e => ids.Contains(e.Id)).ToList();
+}
+
+static int ToStableInt(string value)
+{
+  unchecked
+  {
+    var hash = 23;
+    foreach (var ch in value)
+    {
+      hash = (hash * 31) + ch;
+    }
+
+    return hash == int.MinValue ? 0 : Math.Abs(hash);
+  }
 }
 
 static string Truncate(string value, int maxLength) 
