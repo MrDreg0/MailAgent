@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using MailAgent;
 using MailAgent.Database;
 using MailAgent.Database.PostgreSql;
 using MailKit;
@@ -13,6 +14,7 @@ var webApplicationBuilder = WebApplication.CreateBuilder(args);
 
 var connectionString = webApplicationBuilder.Configuration.GetConnectionString("Database") ?? throw new InvalidOperationException("Database connection string is missing");
 webApplicationBuilder.Services.AddPostgreSqlDataContext(connectionString);
+webApplicationBuilder.Services.AddSingleton<EmailBodyConverter>();
 
 webApplicationBuilder.Services.AddHttpClient("ollama", client =>
 {
@@ -48,7 +50,7 @@ webApplication.MapGet("/folders", async () =>
   });
 });
 
-webApplication.MapGet("/test-mail", async (PostgreSqlDataContext db) =>
+webApplication.MapGet("/test-mail", async (PostgreSqlDataContext db, EmailBodyConverter bodyConverter) =>
 {
   using var imapClient = new ImapClient();
 
@@ -77,20 +79,15 @@ webApplication.MapGet("/test-mail", async (PostgreSqlDataContext db) =>
     var message = await releaseFolder.GetMessageAsync(summary.UniqueId);
     var imapUid = checked((int)summary.UniqueId.Id);
     imapUids.Add(imapUid);
-    var bodyText = message.TextBody;
-    
-    if (string.IsNullOrWhiteSpace(bodyText) && !string.IsNullOrWhiteSpace(message.HtmlBody))
-    {
-      // супер-простой strip html для прототипа
-      bodyText = StripHtml(message.HtmlBody);
-    }
+    var rawBody = message.HtmlBody ?? message.TextBody ?? string.Empty;
+    var markdownBody = bodyConverter.ConvertToMarkdown(message.HtmlBody, message.TextBody);
 
     messageSummaries.Add(new
     {
       summary.UniqueId,
       message.MessageId,
       message.Subject,
-      Body = bodyText,
+      Body = markdownBody,
       From = message.From.ToString(),
       Date = message.Date.ToString("u")
     });
@@ -103,7 +100,8 @@ webApplication.MapGet("/test-mail", async (PostgreSqlDataContext db) =>
       DateUtc: message.Date.ToUniversalTime(),
       From: message.From.ToString(),
       Subject: message.Subject ?? string.Empty,
-      Body: bodyText ?? string.Empty,
+      RawBody: rawBody,
+      MarkdownBody: markdownBody,
       InsertedAt: DateTimeOffset.UtcNow.ToString("u")
     ));
   }
@@ -134,7 +132,7 @@ webApplication.MapGet("/test-mail", async (PostgreSqlDataContext db) =>
   });
 });
 
-webApplication.MapGet("/digest", async (IHttpClientFactory httpClientFactory) =>
+webApplication.MapGet("/digest", async (IHttpClientFactory httpClientFactory, EmailBodyConverter bodyConverter) =>
 {
   const int takeCount = 10;
   var emails = new List<EmailDto>(capacity: takeCount);
@@ -155,15 +153,10 @@ webApplication.MapGet("/digest", async (IHttpClientFactory httpClientFactory) =>
       var messageIndex = totalMessageCount - 1 - indexFromEnd;
       var message = await inboxFolder.GetMessageAsync(messageIndex);
 
-      var bodyText = message.TextBody;
-      if (string.IsNullOrWhiteSpace(bodyText) && !string.IsNullOrWhiteSpace(message.HtmlBody))
-      {
-        // супер-простой strip html для прототипа
-        bodyText = StripHtml(message.HtmlBody);
-      }
+      var bodyText = bodyConverter.ConvertToMarkdown(message.HtmlBody, message.TextBody);
 
       // ограничим размер тела, чтобы не кормить LLM лишним
-      bodyText = Truncate(bodyText ?? string.Empty, 1500);
+      bodyText = Truncate(bodyText, 1500);
 
       emails.Add(new EmailDto(
         indexFromEnd + 1,
@@ -238,35 +231,6 @@ static List<EmailDto> ParseSelectedIdsOrFallback(string classifierResponseText, 
 
 static string Truncate(string value, int maxLength) 
   => value.Length <= maxLength ? value : value[..maxLength];
-
-static string StripHtml(string html)
-{
-  // сверх-простой прототип: убираем теги
-  var charArray = new char[html.Length];
-  var charArrayIndex = 0;
-  var inside = false;
-
-  foreach (var ch in html)
-  {
-    switch (ch)
-    {
-      case '<':
-        inside = true;
-        continue;
-      case '>':
-        inside = false;
-        continue;
-    }
-
-    if (!inside)
-    {
-      charArray[charArrayIndex] = ch;
-      charArrayIndex++;
-    }
-  }
-
-  return new string(charArray, 0, charArrayIndex);
-}
 
 static string BuildDigestPrompt(IReadOnlyList<EmailDto> selected)
 {

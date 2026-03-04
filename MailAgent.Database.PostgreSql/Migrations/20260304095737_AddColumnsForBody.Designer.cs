@@ -3,6 +3,7 @@ using System;
 using MailAgent.Database.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MailAgent.Database.PostgreSql.Migrations
 {
     [DbContext(typeof(PostgreSqlDataContext))]
-    partial class PostgreSqlDataContextModelSnapshot : ModelSnapshot
+    [Migration("20260304095737_AddColumnsForBody")]
+    partial class AddColumnsForBody
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

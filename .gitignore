@@ -22,6 +22,7 @@ artifacts/
 # User-specific files
 **/Properties/launchSettings.json
 **/appsettings.*.json
+.DS_Store
 
 # Build files
 *.log

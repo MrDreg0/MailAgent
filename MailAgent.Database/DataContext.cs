@@ -1,11 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 namespace MailAgent.Database;
 
-public class DataContext : DbContext
+public class DataContext(DbContextOptions options) : DbContext(options)
 {
   public DbSet<MailDto> Mails { get; set; }
-  
-  public DataContext(DbContextOptions options) : base(options)
-  {
-  }
 }

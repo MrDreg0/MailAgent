@@ -8,6 +8,6 @@ public record MailDto(
   DateTimeOffset DateUtc,
   string From,
   string Subject,
-  string Body,
+  string RawBody,
+  string MarkdownBody,
   string InsertedAt);
-
