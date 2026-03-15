@@ -1,11 +1,10 @@
 using MailAgent.Application;
-using MailAgent.Domain.Mail;
-using MailAgent.Settings;
 using Microsoft.Exchange.WebServices.Data;
 using Task = System.Threading.Tasks.Task;
-namespace MailAgent.Mail;
 
-public sealed class EwsMailClient(EwsSettings ewsSettings) : IMailClient
+namespace MailAgent.Mail.Ews;
+
+public sealed class MailClient(Settings settings) : IMailClient
 {
   public Task<IReadOnlyList<string>> GetInboxSubfolderNamesAsync(CancellationToken cancellationToken = default)
   {
@@ -46,18 +45,18 @@ public sealed class EwsMailClient(EwsSettings ewsSettings) : IMailClient
   {
     var service = new ExchangeService(ExchangeVersion.Exchange2013_SP1)
     {
-      Credentials = string.IsNullOrWhiteSpace(ewsSettings.Domain)
-        ? new WebCredentials(ewsSettings.Username, ewsSettings.Password)
-        : new WebCredentials(ewsSettings.Username, ewsSettings.Password, ewsSettings.Domain)
+      Credentials = string.IsNullOrWhiteSpace(settings.Domain)
+        ? new WebCredentials(settings.Username, settings.Password)
+        : new WebCredentials(settings.Username, settings.Password, settings.Domain)
     };
 
-    if (!string.IsNullOrWhiteSpace(ewsSettings.Url))
+    if (!string.IsNullOrWhiteSpace(settings.Url))
     {
-      service.Url = new Uri(ewsSettings.Url);
+      service.Url = new Uri(settings.Url);
       return service;
     }
 
-    service.AutodiscoverUrl(ewsSettings.Username, redirectUrl =>
+    service.AutodiscoverUrl(settings.Username, redirectUrl =>
       Uri.TryCreate(redirectUrl, UriKind.Absolute, out var uri)
       && uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase));
     return service;

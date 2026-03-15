@@ -1,4 +1,4 @@
-namespace MailAgent.Domain.Mail;
+namespace MailAgent.Application;
 
 public sealed record MailMessage(
   string ExternalId,

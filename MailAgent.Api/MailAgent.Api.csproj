@@ -9,15 +9,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.Exchange.WebServices" Version="2.2.0" />
-        <PackageReference Include="MailKit" Version="4.15.0" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.2"/>
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\MailAgent.Application\MailAgent.Application.csproj" />
       <ProjectReference Include="..\MailAgent.Database.PostgreSql\MailAgent.Database.PostgreSql.csproj" />
-      <ProjectReference Include="..\MailAgent\MailAgent.csproj" />
+      <ProjectReference Include="..\MailAgent.Mail\MailAgent.Mail.csproj" />
     </ItemGroup>
 
 </Project>

@@ -1,18 +1,19 @@
 using MailAgent.Application;
-using MailAgent.Mail;
-using MailAgent.Settings;
 using MailKit.Security;
-namespace MailAgent.Initialization;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
-public static class MailClient
+namespace MailAgent.Mail;
+
+public static class DependencyInjection
 {
-  internal static IServiceCollection AddMailClient(this IServiceCollection services, IConfiguration configuration)
+  public static IServiceCollection AddMailClient(this IServiceCollection services, IConfiguration configuration)
   {
     services.AddSingleton<IMailClient>(_ =>
     {
       var mailServerSettingsSection = configuration.GetSection("MailServer");
       var provider = mailServerSettingsSection["Provider"]?.Trim().ToLowerInvariant();
-      
+
       return provider switch
       {
         "imap" => CreateImapMailClient(mailServerSettingsSection),
@@ -20,25 +21,25 @@ public static class MailClient
         _ => throw new InvalidOperationException($"Unsupported mail provider '{provider}'. Use 'ews' or 'imap'.")
       };
     });
-    
+
     return services;
   }
 
-  private static EwsMailClient CreateEwsClient(IConfigurationSection mailServerSettingsSection)
+  private static Ews.MailClient CreateEwsClient(IConfigurationSection mailServerSettingsSection)
   {
     var ewsSection = mailServerSettingsSection.GetSection("Ews");
-    var ewsSettings = new EwsSettings
+    var ewsSettings = new Ews.Settings
     {
       Username = mailServerSettingsSection["Username"] ?? throw new InvalidOperationException("MailServer:Username configuration is missing"),
       Password = mailServerSettingsSection["Password"] ?? throw new InvalidOperationException("MailServer:Password configuration is missing"),
       Domain = ewsSection["Domain"],
       Url = ewsSection["Url"],
     };
-    
-    return new EwsMailClient(ewsSettings); 
+
+    return new Ews.MailClient(ewsSettings);
   }
 
-  private static ImapMailClient CreateImapMailClient(IConfigurationSection mailServerSettingsSection)
+  private static Imap.MailClient CreateImapMailClient(IConfigurationSection mailServerSettingsSection)
   {
     var imapSection = mailServerSettingsSection.GetSection("Imap");
     if (!Enum.TryParse(imapSection["Security"], ignoreCase: true, out SecureSocketOptions secureSocketOptions))
@@ -46,7 +47,7 @@ public static class MailClient
       throw new InvalidOperationException($"Invalid security setting '{imapSection["Security"]}' for IMAP provider.");
     }
 
-    var imapSettings = new ImapSettings
+    var imapSettings = new Imap.Settings
     {
       Username = mailServerSettingsSection["Username"] ?? throw new InvalidOperationException("MailServer:Username configuration is missing"),
       Password = mailServerSettingsSection["Password"] ?? throw new InvalidOperationException("MailServer:Password configuration is missing"),
@@ -55,6 +56,6 @@ public static class MailClient
       Security = secureSocketOptions,
     };
 
-    return new ImapMailClient(imapSettings);
+    return new Imap.MailClient(imapSettings);
   }
 }

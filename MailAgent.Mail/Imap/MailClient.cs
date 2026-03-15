@@ -1,13 +1,11 @@
 using MailAgent.Application;
-using MailAgent.Domain.Mail;
-using MailAgent.Settings;
 using MailKit;
 using MailKit.Net.Imap;
 using MessageSummaryItems = MailKit.MessageSummaryItems;
 
-namespace MailAgent.Mail;
+namespace MailAgent.Mail.Imap;
 
-public sealed class ImapMailClient(ImapSettings imapSettings) : IMailClient
+public sealed class MailClient(Settings settings) : IMailClient
 {
   public async Task<IReadOnlyList<string>> GetInboxSubfolderNamesAsync(CancellationToken cancellationToken = default)
   {
@@ -39,8 +37,8 @@ public sealed class ImapMailClient(ImapSettings imapSettings) : IMailClient
   {
     var client = new ImapClient();
 
-    await client.ConnectAsync(imapSettings.Host, imapSettings.Port, imapSettings.Security, cancellationToken);
-    await client.AuthenticateAsync(imapSettings.Username, imapSettings.Password, cancellationToken);
+    await client.ConnectAsync(settings.Host, settings.Port, settings.Security, cancellationToken);
+    await client.AuthenticateAsync(settings.Username, settings.Password, cancellationToken);
 
     return client;
   }

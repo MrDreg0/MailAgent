@@ -1,5 +1,3 @@
-using MailAgent.Domain.Mail;
-
 namespace MailAgent.Application;
 
 public interface IMailClient
