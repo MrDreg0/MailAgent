@@ -12,6 +12,8 @@ public static class DependencyInjection
       options
         .EnableSensitiveDataLogging()
         .UseNpgsql(connectionString));
+    services.AddScoped<DataContext>(serviceProvider => serviceProvider.GetRequiredService<PostgreSqlDataContext>());
+    services.AddScoped<MailAgent.Application.IMailRepository, MailRepository>();
 
     return services;
   }

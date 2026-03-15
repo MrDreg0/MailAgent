@@ -1,3 +1,5 @@
+using MailAgent.Application;
+using MailAgent.Domain.Mail;
 using MailAgent.Settings;
 using MailKit;
 using MailKit.Net.Imap;
@@ -16,7 +18,7 @@ public sealed class ImapMailClient(ImapSettings imapSettings) : IMailClient
     return folders.Select(folder => folder.Name).ToList();
   }
 
-  public async Task<IReadOnlyList<MailMessageDto>> GetLatestFromFolderAsync(string folderPath, int takeCount, CancellationToken cancellationToken = default)
+  public async Task<IReadOnlyList<MailMessage>> GetLatestFromFolderAsync(string folderPath, int takeCount, CancellationToken cancellationToken = default)
   {
     ArgumentException.ThrowIfNullOrWhiteSpace(folderPath);
 
@@ -26,7 +28,7 @@ public sealed class ImapMailClient(ImapSettings imapSettings) : IMailClient
     return await GetLatestMessagesAsync(folder, takeCount, cancellationToken);
   }
 
-  public async Task<IReadOnlyList<MailMessageDto>> GetLatestFromInboxAsync(int takeCount, CancellationToken cancellationToken = default)
+  public async Task<IReadOnlyList<MailMessage>> GetLatestFromInboxAsync(int takeCount, CancellationToken cancellationToken = default)
   {
     using var imapClient = await ConnectAsync(cancellationToken);
 
@@ -56,7 +58,7 @@ public sealed class ImapMailClient(ImapSettings imapSettings) : IMailClient
     return current;
   }
 
-  private static async Task<IReadOnlyList<MailMessageDto>> GetLatestMessagesAsync(IMailFolder folder, int takeCount, CancellationToken cancellationToken)
+  private static async Task<IReadOnlyList<MailMessage>> GetLatestMessagesAsync(IMailFolder folder, int takeCount, CancellationToken cancellationToken)
   {
     if (takeCount <= 0)
     {
@@ -80,13 +82,13 @@ public sealed class ImapMailClient(ImapSettings imapSettings) : IMailClient
       new FetchRequest(MessageSummaryItems.UniqueId),
       cancellationToken);
 
-    var messages = new List<MailMessageDto>(actualTakeCount);
+    var messages = new List<MailMessage>(actualTakeCount);
 
     foreach (var summary in summaries.TakeLast(actualTakeCount))
     {
       var mimeMessage = await folder.GetMessageAsync(summary.UniqueId, cancellationToken);
 
-      messages.Add(new MailMessageDto(
+      messages.Add(new MailMessage(
         ExternalId: summary.UniqueId.Id.ToString(),
         MessageId: mimeMessage.MessageId ?? string.Empty,
         Subject: mimeMessage.Subject ?? string.Empty,

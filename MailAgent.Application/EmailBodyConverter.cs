@@ -1,7 +1,7 @@
 using HtmlAgilityPack;
 using ReverseMarkdown;
 
-namespace MailAgent;
+namespace MailAgent.Application;
 
 public sealed class EmailBodyConverter
 {
@@ -34,7 +34,7 @@ public sealed class EmailBodyConverter
 
     var cleanedHtml = CleanHtml(htmlBody);
     var markdown = _converter.Convert(cleanedHtml);
-    
+
     return Normalize(markdown);
   }
 

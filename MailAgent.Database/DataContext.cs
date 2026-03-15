@@ -3,5 +3,12 @@ namespace MailAgent.Database;
 
 public class DataContext(DbContextOptions options) : DbContext(options)
 {
-  public DbSet<MailDto> Mails { get; set; }
+  public DbSet<MailRecord> Mails { get; set; }
+
+  protected override void OnModelCreating(ModelBuilder modelBuilder)
+  {
+    modelBuilder.Entity<MailRecord>()
+      .HasIndex(mail => mail.MessageId)
+      .IsUnique();
+  }
 }

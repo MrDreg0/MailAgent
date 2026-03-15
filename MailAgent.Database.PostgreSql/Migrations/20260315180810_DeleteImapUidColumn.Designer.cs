@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MailAgent.Database.PostgreSql.Migrations
 {
     [DbContext(typeof(PostgreSqlDataContext))]
-    [Migration("20260304095737_AddColumnsForBody")]
-    partial class AddColumnsForBody
+    [Migration("20260315180810_DeleteImapUidColumn")]
+    partial class DeleteImapUidColumn
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

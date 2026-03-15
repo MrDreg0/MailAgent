@@ -1,3 +1,5 @@
+using MailAgent.Application;
+using MailAgent.Domain.Mail;
 using MailAgent.Settings;
 using Microsoft.Exchange.WebServices.Data;
 using Task = System.Threading.Tasks.Task;
@@ -23,7 +25,7 @@ public sealed class EwsMailClient(EwsSettings ewsSettings) : IMailClient
     return Task.FromResult(names);
   }
 
-  public Task<IReadOnlyList<MailMessageDto>> GetLatestFromFolderAsync(string folderPath, int takeCount, CancellationToken cancellationToken = default)
+  public Task<IReadOnlyList<MailMessage>> GetLatestFromFolderAsync(string folderPath, int takeCount, CancellationToken cancellationToken = default)
   {
     ArgumentException.ThrowIfNullOrWhiteSpace(folderPath);
 
@@ -33,7 +35,7 @@ public sealed class EwsMailClient(EwsSettings ewsSettings) : IMailClient
     return Task.FromResult(GetLatestMessages(service, folderId, takeCount));
   }
 
-  public Task<IReadOnlyList<MailMessageDto>> GetLatestFromInboxAsync(int takeCount, CancellationToken cancellationToken = default)
+  public Task<IReadOnlyList<MailMessage>> GetLatestFromInboxAsync(int takeCount, CancellationToken cancellationToken = default)
   {
     var service = CreateService();
 
@@ -88,7 +90,7 @@ public sealed class EwsMailClient(EwsSettings ewsSettings) : IMailClient
     return currentFolderId;
   }
 
-  private static IReadOnlyList<MailMessageDto> GetLatestMessages(ExchangeService service, FolderId folderId, int takeCount)
+  private static IReadOnlyList<MailMessage> GetLatestMessages(ExchangeService service, FolderId folderId, int takeCount)
   {
     if (takeCount <= 0)
     {
@@ -112,7 +114,7 @@ public sealed class EwsMailClient(EwsSettings ewsSettings) : IMailClient
       EmailMessageSchema.From,
       ItemSchema.Body));
 
-    var messages = new List<MailMessageDto>(findResults.Items.Count);
+    var messages = new List<MailMessage>(findResults.Items.Count);
 
     foreach (var item in findResults)
     {
@@ -125,7 +127,7 @@ public sealed class EwsMailClient(EwsSettings ewsSettings) : IMailClient
       var htmlBody = email.Body?.BodyType == BodyType.HTML ? body : null;
       var textBody = email.Body?.BodyType == BodyType.Text ? body : null;
 
-      messages.Add(new MailMessageDto(
+      messages.Add(new MailMessage(
         ExternalId: email.Id?.UniqueId ?? string.Empty,
         MessageId: email.InternetMessageId ?? string.Empty,
         Subject: email.Subject ?? string.Empty,

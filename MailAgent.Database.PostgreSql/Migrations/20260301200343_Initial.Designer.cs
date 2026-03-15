@@ -25,7 +25,7 @@ namespace MailAgent.Database.PostgreSql.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("MailAgent.Database.MailDto", b =>
+            modelBuilder.Entity("MailAgent.Database.MailRecord", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -48,9 +48,6 @@ namespace MailAgent.Database.PostgreSql.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("ImapUid")
-                        .HasColumnType("integer");
-
                     b.Property<string>("InsertedAt")
                         .IsRequired()
                         .HasColumnType("text");
@@ -64,6 +61,9 @@ namespace MailAgent.Database.PostgreSql.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique();
 
                     b.ToTable("Mails");
                 });

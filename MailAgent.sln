@@ -13,6 +13,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Persistence", "Persistence"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MailAgent.Database.PostgreSql", "MailAgent.Database.PostgreSql\MailAgent.Database.PostgreSql.csproj", "{70E81D2D-0AA1-40E8-8F9A-49F838939622}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MailAgent", "MailAgent\MailAgent.csproj", "{F31D43EF-D55D-436E-8A83-6B2A4BA16C04}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MailAgent.Application", "MailAgent.Application\MailAgent.Application.csproj", "{4FD4BFD7-3E07-4C18-AF78-95E6D85FDCCF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -31,6 +35,14 @@ Global
 		{70E81D2D-0AA1-40E8-8F9A-49F838939622}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{70E81D2D-0AA1-40E8-8F9A-49F838939622}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{70E81D2D-0AA1-40E8-8F9A-49F838939622}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F31D43EF-D55D-436E-8A83-6B2A4BA16C04}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F31D43EF-D55D-436E-8A83-6B2A4BA16C04}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F31D43EF-D55D-436E-8A83-6B2A4BA16C04}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F31D43EF-D55D-436E-8A83-6B2A4BA16C04}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4FD4BFD7-3E07-4C18-AF78-95E6D85FDCCF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4FD4BFD7-3E07-4C18-AF78-95E6D85FDCCF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4FD4BFD7-3E07-4C18-AF78-95E6D85FDCCF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4FD4BFD7-3E07-4C18-AF78-95E6D85FDCCF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{29EB4F93-B5FA-49A3-B6D9-85E091475507} = {2405B230-F803-4841-94C8-8E56163BB941}

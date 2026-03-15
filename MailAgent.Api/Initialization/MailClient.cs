@@ -1,3 +1,4 @@
+using MailAgent.Application;
 using MailAgent.Mail;
 using MailAgent.Settings;
 using MailKit.Security;

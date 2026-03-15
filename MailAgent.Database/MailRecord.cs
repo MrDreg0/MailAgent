@@ -1,9 +1,8 @@
 namespace MailAgent.Database;
 
-public record MailDto(
+public sealed record MailRecord(
   int Id,
   string Folder,
-  int ImapUid,
   string MessageId,
   DateTimeOffset DateUtc,
   string From,
