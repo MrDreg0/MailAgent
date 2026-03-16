@@ -17,6 +17,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MailAgent.Application", "Ma
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MailAgent.Mail", "MailAgent.Mail\MailAgent.Mail.csproj", "{67A7F4FB-7C6A-4CF8-B7E3-6DBA065A0EB7}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{2621B2F1-1853-48B1-82E6-67E7AA645219}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MailAgent.Application.Tests", "MailAgent.Application.Tests\MailAgent.Application.Tests.csproj", "{735CAC7C-B03E-4CE2-84ED-5D394FCB89F2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -43,9 +47,14 @@ Global
 		{67A7F4FB-7C6A-4CF8-B7E3-6DBA065A0EB7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{67A7F4FB-7C6A-4CF8-B7E3-6DBA065A0EB7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{67A7F4FB-7C6A-4CF8-B7E3-6DBA065A0EB7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{735CAC7C-B03E-4CE2-84ED-5D394FCB89F2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{735CAC7C-B03E-4CE2-84ED-5D394FCB89F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{735CAC7C-B03E-4CE2-84ED-5D394FCB89F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{735CAC7C-B03E-4CE2-84ED-5D394FCB89F2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{29EB4F93-B5FA-49A3-B6D9-85E091475507} = {2405B230-F803-4841-94C8-8E56163BB941}
 		{70E81D2D-0AA1-40E8-8F9A-49F838939622} = {2405B230-F803-4841-94C8-8E56163BB941}
+		{735CAC7C-B03E-4CE2-84ED-5D394FCB89F2} = {2621B2F1-1853-48B1-82E6-67E7AA645219}
 	EndGlobalSection
 EndGlobal

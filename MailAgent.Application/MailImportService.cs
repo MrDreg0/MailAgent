@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+[assembly: InternalsVisibleTo("MailAgent.Application.Tests")]
 namespace MailAgent.Application;
 
 public sealed class MailImportService(
@@ -38,7 +40,7 @@ public sealed class MailImportService(
     return new MailImportResult(messageSummaries);
   }
 
-  private static StoredMail? MapToStoredMail(string folderName, MailMessage message, string markdownBody, DateTimeOffset insertedAtUtc)
+  internal static StoredMail? MapToStoredMail(string folderName, MailMessage message, string markdownBody, DateTimeOffset insertedAtUtc)
   {
     if (string.IsNullOrWhiteSpace(message.NormalizedMessageId))
     {
