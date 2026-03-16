@@ -50,8 +50,10 @@ public static class MailEndpoints
 
   private static async Task<IResult> GetDigest(ReleaseDigestService releaseDigestService, CancellationToken cancellationToken)
   {
-    const int takeCount = 10;
-    var result = await releaseDigestService.BuildInboxDigestAsync(takeCount, cancellationToken);
+    const string folderName = "Releases";
+    const int takeCount = 5;
+    
+    var result = await releaseDigestService.BuildInboxDigestAsync(folderName, takeCount, cancellationToken);
     return Results.Ok(result);
   }
 }

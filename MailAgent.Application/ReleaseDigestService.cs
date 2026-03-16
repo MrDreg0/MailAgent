@@ -1,15 +1,19 @@
 using System.Text;
+using MailAgent.Application.Ollama;
 
 namespace MailAgent.Application;
 
 public sealed class ReleaseDigestService(
   EmailBodyConverter bodyConverter,
   IMailClient mailClient,
-  OllamaClient ollamaClient)
+  IOllamaClient ollamaClient)
 {
-  public async Task<ReleaseDigestResult> BuildInboxDigestAsync(int takeCount, CancellationToken cancellationToken = default)
+  public async Task<ReleaseDigestResult> BuildInboxDigestAsync(
+    string folderName,
+    int takeCount,
+    CancellationToken cancellationToken = default)
   {
-    var fetchedMessages = await mailClient.GetLatestFromInboxAsync(takeCount, cancellationToken);
+    var fetchedMessages = await mailClient.GetLatestFromFolderAsync(folderName, takeCount, cancellationToken);
     var emails = new List<DigestEmail>(capacity: fetchedMessages.Count);
 
     var emailId = 1;
@@ -26,22 +30,24 @@ public sealed class ReleaseDigestService(
         bodyPreview));
     }
 
-    var classifierResponseText = await ollamaClient.GenerateAsync(
-      model: "llama3.2:3b",
-      prompt: BuildClassifierPrompt(emails),
-      cancellationToken);
+    var request = new OllamaGenerateRequest("llama3.2:3b", BuildClassifierPrompt(emails), false, 0);
+    
+    var classifierResult = await ollamaClient.Generate(request, cancellationToken);
 
-    var selected = ParseSelectedIdsOrFallback(classifierResponseText, emails);
+    var selected = ParseSelectedIdsOrFallback(classifierResult.Response, emails);
 
-    var digestText = await ollamaClient.GenerateAsync(
-      model: "qwen2.5:7b-instruct",
-      prompt: BuildDigestPrompt(selected),
+    var digestResult = await ollamaClient.Generate(
+      new OllamaGenerateRequest(
+        "qwen2.5:7b-instruct",
+        BuildDigestPrompt(selected),
+        false,
+        0),
       cancellationToken);
 
     return new ReleaseDigestResult(
       TotalFetched: emails.Count,
       Selected: selected.Count,
-      Digest: digestText.Trim());
+      Digest: digestResult.Response.Trim());
   }
 
   private static IReadOnlyList<DigestEmail> ParseSelectedIdsOrFallback(string classifierResponseText, IReadOnlyList<DigestEmail> emails)

@@ -1,4 +1,4 @@
-namespace MailAgent.Application;
+namespace MailAgent.Application.Ollama;
 
 public sealed class OllamaSettings
 {

@@ -1,4 +1,6 @@
+using MailAgent.Application.Ollama;
 using Microsoft.Extensions.DependencyInjection;
+using Refit;
 namespace MailAgent.Application;
 
 public static class DependencyInjection
@@ -7,14 +9,14 @@ public static class DependencyInjection
   {
     services.AddSingleton<EmailBodyConverter>()
       .AddScoped<MailImportService>()
-      .AddScoped<ReleaseDigestService>()
-      .AddSingleton<OllamaClient>();
+      .AddScoped<ReleaseDigestService>();
     
-    services.AddHttpClient("ollama", client =>
-    {
-      client.BaseAddress = new Uri(ollamaSettings.BaseUrl);
-      client.Timeout = ollamaSettings.Timeout;
-    });
+    services.AddRefitClient<IOllamaClient>()
+      .ConfigureHttpClient(client =>
+      {
+        client.BaseAddress = new Uri(ollamaSettings.BaseUrl);
+        client.Timeout = ollamaSettings.Timeout;
+      });
     
     return services;
   }

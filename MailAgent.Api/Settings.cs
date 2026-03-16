@@ -1,4 +1,5 @@
 using MailAgent.Application;
+using MailAgent.Application.Ollama;
 using EwsSettings = MailAgent.Mail.Ews.Settings;
 using ImapSettings = MailAgent.Mail.Imap.Settings;
 using MailKit.Security;
