@@ -27,6 +27,8 @@ public sealed class MailRepository(DataContext dbContext) : IMailRepository
     var existingMessageIdSet = existingMessageIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     var newRecords = mails
+      .GroupBy(mail => mail.MessageId, StringComparer.OrdinalIgnoreCase)
+      .Select(group => group.First())
       .Where(mail => !existingMessageIdSet.Contains(mail.MessageId))
       .Select(MapToRecord)
       .ToList();
