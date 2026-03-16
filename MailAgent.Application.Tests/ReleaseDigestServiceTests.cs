@@ -8,7 +8,7 @@ namespace MailAgent.Application.Tests;
 public class ReleaseDigestServiceTests
 {
   private Fixture _fixture = null!;
-  private IMailClient _mailClient = null!;
+  private IMailRepository _mailRepository = null!;
   private IOllamaClient _ollamaClient = null!;
   private ReleaseDigestService _sut = null!;
 
@@ -16,9 +16,9 @@ public class ReleaseDigestServiceTests
   public void SetUp()
   {
     _fixture = new Fixture();
-    _mailClient = Substitute.For<IMailClient>();
+    _mailRepository = Substitute.For<IMailRepository>();
     _ollamaClient = Substitute.For<IOllamaClient>();
-    _sut = new ReleaseDigestService(new EmailBodyConverter(), _mailClient, _ollamaClient);
+    _sut = new ReleaseDigestService(_mailRepository, _ollamaClient);
   }
 
   [Test]
@@ -26,20 +26,20 @@ public class ReleaseDigestServiceTests
   {
     // Given.
     var folderName = _fixture.Create<string>();
-    var takeCount = _fixture.Create<int>();
+    var period = _fixture.Create<TimeSpan>();
     using var cancellationTokenSource = new CancellationTokenSource();
     var cancellationToken = cancellationTokenSource.Token;
 
     var selectedBody = new string('a', 1605);
-    var fetchedMessages = new[]
+    var storedMails = new[]
     {
-      CreateMailMessage(subject: "Weekly news", textBody: "noise"),
-      CreateMailMessage(subject: "Product release", textBody: selectedBody)
+      CreateStoredMail(subject: "Weekly news", markdownBody: "noise"),
+      CreateStoredMail(subject: "Product release", markdownBody: selectedBody)
     };
 
-    _mailClient
-      .GetLatestFromFolderAsync(folderName, takeCount, cancellationToken)
-      .Returns(fetchedMessages);
+    _mailRepository
+      .GetByPeriodFromFolder(folderName, period, cancellationToken)
+      .Returns(storedMails);
 
     var requests = new List<OllamaGenerateRequest>();
 
@@ -50,10 +50,10 @@ public class ReleaseDigestServiceTests
         new OllamaGenerateResponse("  final digest  "));
 
     // When.
-    var result = await _sut.BuildInboxDigestAsync(folderName, takeCount, cancellationToken);
+    var result = await _sut.BuildInboxDigestAsync(folderName, period, cancellationToken);
 
     // Then.
-    await _mailClient.Received(1).GetLatestFromFolderAsync(folderName, takeCount, cancellationToken);
+    await _mailRepository.Received(1).GetByPeriodFromFolder(folderName, period, cancellationToken);
     await _ollamaClient.Received(2).Generate(Arg.Any<OllamaGenerateRequest>(), cancellationToken);
 
     Assert.That(result.TotalFetched, Is.EqualTo(2));
@@ -80,18 +80,18 @@ public class ReleaseDigestServiceTests
   {
     // Given.
     var folderName = _fixture.Create<string>();
-    var takeCount = _fixture.Create<int>();
+    var period = _fixture.Create<TimeSpan>();
 
-    var fetchedMessages = new[]
+    var storedMails = new[]
     {
-      CreateMailMessage(subject: "Вышла версия 1.2.3", textBody: "first"),
-      CreateMailMessage(subject: "General update", textBody: "second"),
-      CreateMailMessage(subject: "Service release announcement", textBody: "third")
+      CreateStoredMail(subject: "Вышла версия 1.2.3", markdownBody: "first"),
+      CreateStoredMail(subject: "General update", markdownBody: "second"),
+      CreateStoredMail(subject: "Service release announcement", markdownBody: "third")
     };
 
-    _mailClient
-      .GetLatestFromFolderAsync(folderName, takeCount, Arg.Any<CancellationToken>())
-      .Returns(fetchedMessages);
+    _mailRepository
+      .GetByPeriodFromFolder(folderName, period, Arg.Any<CancellationToken>())
+      .Returns(storedMails);
 
     var requests = new List<OllamaGenerateRequest>();
 
@@ -102,7 +102,7 @@ public class ReleaseDigestServiceTests
         new OllamaGenerateResponse("digest"));
 
     // When.
-    var result = await _sut.BuildInboxDigestAsync(folderName, takeCount);
+    var result = await _sut.BuildInboxDigestAsync(folderName, period);
 
     // Then.
     Assert.That(result.TotalFetched, Is.EqualTo(3));
@@ -117,15 +117,17 @@ public class ReleaseDigestServiceTests
     });
   }
 
-  private MailMessage CreateMailMessage(
+  private StoredMail CreateStoredMail(
     string? subject = null,
-    string? textBody = null,
-    string? htmlBody = null)
+    string? markdownBody = null)
   {
-    return _fixture.Build<MailMessage>()
+    return _fixture.Build<StoredMail>()
+      .With(x => x.Id, 0)
+      .With(x => x.Folder, _fixture.Create<string>())
+      .With(x => x.MessageId, _fixture.Create<string>())
+      .With(x => x.RawBody, _fixture.Create<string>())
       .With(x => x.Subject, subject ?? _fixture.Create<string>())
-      .With(x => x.TextBody, textBody)
-      .With(x => x.HtmlBody, htmlBody)
+      .With(x => x.MarkdownBody, markdownBody ?? _fixture.Create<string>())
       .Create();
   }
 }

@@ -92,6 +92,34 @@ public class MailRepositoryTests
     });
   }
 
+  [Test]
+  public async Task GetLatestFromFolderAsync_ReturnsLatestMailsForFolderInDescendingDateOrder()
+  {
+    // Given.
+    _dbContext.Mails.AddRange(
+      new MailRecord(1, "Releases", "message-1", DateTimeOffset.Parse("2026-03-16T08:00:00Z"), "a@example.com", "older", "raw-1", "md-1", "2026-03-16 08:00:00Z"),
+      new MailRecord(2, "Releases", "message-2", DateTimeOffset.Parse("2026-03-16T10:00:00Z"), "b@example.com", "newest", "raw-2", "md-2", "2026-03-16 10:00:00Z"),
+      new MailRecord(3, "Other", "message-3", DateTimeOffset.Parse("2026-03-16T12:00:00Z"), "c@example.com", "other-folder", "raw-3", "md-3", "2026-03-16 12:00:00Z"));
+    await _dbContext.SaveChangesAsync();
+
+    // When.
+    var result = await _sut.GetLatestFromFolderAsync("Releases", 2);
+
+    // Then.
+    Assert.That(result.Select(x => x.MessageId), Is.EqualTo(["message-2", "message-1"]));
+    Assert.That(result.All(x => x.Folder == "Releases"), Is.True);
+  }
+
+  [Test]
+  public async Task GetLatestFromFolderAsync_ReturnsEmptyList_WhenTakeCountIsNotPositive()
+  {
+    // When.
+    var result = await _sut.GetLatestFromFolderAsync("Releases", 0);
+
+    // Then.
+    Assert.That(result, Is.Empty);
+  }
+
   private DataContext CreateDataContext()
   {
     var options = new DbContextOptionsBuilder<DataContext>()

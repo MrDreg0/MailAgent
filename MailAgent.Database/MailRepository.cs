@@ -41,6 +41,63 @@ public sealed class MailRepository(DataContext dbContext) : IMailRepository
     await dbContext.SaveChangesAsync(cancellationToken);
   }
 
+  public async Task<IReadOnlyList<StoredMail>> GetLatestFromFolderAsync(
+    string folderName,
+    int takeCount,
+    CancellationToken cancellationToken = default)
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
+
+    if (takeCount <= 0)
+    {
+      return [];
+    }
+
+    return await dbContext.Mails
+      .Where(mail => mail.Folder == folderName)
+      .OrderByDescending(mail => mail.DateUtc)
+      .Take(takeCount)
+      .Select(mail => new StoredMail(
+        mail.Id,
+        mail.Folder,
+        mail.MessageId,
+        mail.DateUtc,
+        mail.From,
+        mail.Subject,
+        mail.RawBody,
+        mail.MarkdownBody,
+        mail.InsertedAt))
+      .ToListAsync(cancellationToken);
+  }
+
+  public async Task<IReadOnlyList<StoredMail>> GetByPeriodFromFolder(string folderName, TimeSpan period, CancellationToken cancellationToken = default)
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
+
+    if (period == TimeSpan.Zero)
+    {
+      return [];
+    }
+    
+    var threshold = DateTimeOffset.UtcNow - period;
+    
+    return await dbContext.Mails
+      .Where(mail => mail.Folder == folderName)
+      .Where(mail => mail.DateUtc >= threshold)
+      .OrderByDescending(mail => mail.DateUtc)
+      .Select(mail => new StoredMail(
+        mail.Id,
+        mail.Folder,
+        mail.MessageId,
+        mail.DateUtc,
+        mail.From,
+        mail.Subject,
+        mail.RawBody,
+        mail.MarkdownBody,
+        mail.InsertedAt))
+      .ToListAsync(cancellationToken);
+  }
+
   private static MailRecord MapToRecord(StoredMail mail)
     => new(
       Id: mail.Id,

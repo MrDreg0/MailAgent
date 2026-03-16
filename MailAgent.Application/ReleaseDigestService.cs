@@ -4,31 +4,23 @@ using MailAgent.Application.Ollama;
 namespace MailAgent.Application;
 
 public sealed class ReleaseDigestService(
-  EmailBodyConverter bodyConverter,
-  IMailClient mailClient,
+  IMailRepository mailRepository,
   IOllamaClient ollamaClient)
 {
   public async Task<ReleaseDigestResult> BuildInboxDigestAsync(
     string folderName,
-    int takeCount,
+    TimeSpan period,
     CancellationToken cancellationToken = default)
   {
-    var fetchedMessages = await mailClient.GetLatestFromFolderAsync(folderName, takeCount, cancellationToken);
-    var emails = new List<DigestEmail>(capacity: fetchedMessages.Count);
+    var storedMails = await mailRepository.GetByPeriodFromFolder(folderName, period, cancellationToken);
+    var emails = new List<DigestEmail>(capacity: storedMails.Count);
 
     var emailId = 1;
-    foreach (var message in fetchedMessages)
-    {
-      var bodyPreview = bodyConverter.ConvertToMarkdown(message.HtmlBody, message.TextBody);
-      bodyPreview = Truncate(bodyPreview, 1500);
-
-      emails.Add(new DigestEmail(
-        emailId++,
-        message.Subject,
-        message.From,
-        message.DateUtc.UtcDateTime,
-        bodyPreview));
-    }
+    
+    emails.AddRange(
+      from message in storedMails 
+      let bodyPreview = Truncate(message.MarkdownBody, 1500) 
+      select new DigestEmail(emailId++, message.Subject, message.From, message.DateUtc.UtcDateTime, bodyPreview));
 
     var request = new OllamaGenerateRequest("llama3.2:3b", BuildClassifierPrompt(emails), false, 0);
     

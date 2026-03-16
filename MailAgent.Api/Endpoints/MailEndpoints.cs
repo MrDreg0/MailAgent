@@ -1,3 +1,4 @@
+using MailAgent.Api.Models;
 using MailAgent.Application;
 namespace MailAgent.Api.Endpoints;
 
@@ -7,7 +8,7 @@ public static class MailEndpoints
   {
     endpoints.MapGet("/folders", GetFolders);
     endpoints.MapGet("/mails", GetMails);
-    endpoints.MapGet("/test-mail", ImportMails);
+    endpoints.MapPost("/mails/import", ImportMails);
     endpoints.MapGet("/digest", GetDigest);
   }
 
@@ -39,21 +40,16 @@ public static class MailEndpoints
     });
   }
 
-  private static async Task<IResult> ImportMails(MailImportService mailImportService, CancellationToken cancellationToken)
+  private static async Task<IResult> ImportMails(ImportMailsRequest request, MailImportService mailImportService, CancellationToken cancellationToken)
   {
-    const string folderName = "Releases";
-    const int takeCount = 5;
-
-    var result = await mailImportService.ImportLatestFromFolderAsync(folderName, takeCount, cancellationToken);
+    var result = await mailImportService.ImportLatestFromFolderAsync(request.Folder, request.TakeCount, cancellationToken);
+    
     return Results.Ok(new { result.Total, result.Latest });
   }
 
-  private static async Task<IResult> GetDigest(ReleaseDigestService releaseDigestService, CancellationToken cancellationToken)
+  private static async Task<IResult> GetDigest(string folder, string period, ReleaseDigestService releaseDigestService, CancellationToken cancellationToken)
   {
-    const string folderName = "Releases";
-    const int takeCount = 5;
-    
-    var result = await releaseDigestService.BuildInboxDigestAsync(folderName, takeCount, cancellationToken);
+    var result = await releaseDigestService.BuildInboxDigestAsync(folder, TimeSpan.Parse(period), cancellationToken);
     return Results.Ok(result);
   }
 }
