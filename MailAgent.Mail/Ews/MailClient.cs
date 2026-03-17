@@ -1,10 +1,6 @@
-using MailAgent.Application;
-using MailAgent.Application.Contracts;
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Contracts.Mail.Models;
-using MailAgent.Application.Import;
 using Microsoft.Exchange.WebServices.Data;
-using Task = System.Threading.Tasks.Task;
 
 namespace MailAgent.Mail.Ews;
 
@@ -12,7 +8,7 @@ public sealed class MailClient(Settings settings) : IMailClient
 {
   private const int PageSize = 200;
 
-  public Task<IReadOnlyList<string>> GetInboxSubfolderNamesAsync(CancellationToken cancellationToken = default)
+  public async Task<IReadOnlyList<string>> GetInboxSubfolderNamesAsync(CancellationToken cancellationToken = default)
   {
     var service = CreateService();
 
@@ -21,33 +17,33 @@ public sealed class MailClient(Settings settings) : IMailClient
       Traversal = FolderTraversal.Shallow
     };
 
-    var folders = service.FindFolders(WellKnownFolderName.Inbox, folderView);
+    var folders = await service.FindFolders(WellKnownFolderName.Inbox, folderView, cancellationToken);
 
     IReadOnlyList<string> names = folders.Folders
       .Select(folder => folder.DisplayName)
       .ToList();
 
-    return Task.FromResult(names);
+    return names;
   }
 
-  public Task<IReadOnlyList<MailMessage>> GetLatestFromFolderAsync(string folderPath, int takeCount, CancellationToken cancellationToken = default)
+  public async Task<IReadOnlyList<MailMessage>> GetLatestFromFolderAsync(string folderPath, int takeCount, CancellationToken cancellationToken = default)
   {
     ArgumentException.ThrowIfNullOrWhiteSpace(folderPath);
 
     var service = CreateService();
-    var folderId = ResolveFolderId(service, folderPath);
+    var folderId = await ResolveFolderId(service, folderPath, cancellationToken);
 
-    return Task.FromResult(GetLatestMessages(service, folderId, takeCount));
+    return await GetLatestMessages(service, folderId, takeCount, cancellationToken);
   }
 
   public Task<IReadOnlyList<MailMessage>> GetLatestFromInboxAsync(int takeCount, CancellationToken cancellationToken = default)
   {
     var service = CreateService();
 
-    return Task.FromResult(GetLatestMessages(service, new FolderId(WellKnownFolderName.Inbox), takeCount));
+    return GetLatestMessages(service, new FolderId(WellKnownFolderName.Inbox), takeCount, cancellationToken);
   }
 
-  public Task<IReadOnlyList<MailMessageIdentifier>> GetMessageIdentifiersFromFolder(
+  public async Task<IReadOnlyList<MailMessageIdentifier>> GetMessageIdentifiersFromFolder(
     string folderPath,
     TimeSpan period,
     CancellationToken cancellationToken = default)
@@ -56,11 +52,11 @@ public sealed class MailClient(Settings settings) : IMailClient
 
     if (period <= TimeSpan.Zero)
     {
-      return Task.FromResult<IReadOnlyList<MailMessageIdentifier>>([]);
+      return [];
     }
 
     var service = CreateService();
-    var folderId = ResolveFolderId(service, folderPath);
+    var folderId = await ResolveFolderId(service, folderPath, cancellationToken);
     var receivedAfterUtc = DateTime.UtcNow - period;
     var searchFilter = new SearchFilter.IsGreaterThanOrEqualTo(ItemSchema.DateTimeReceived, receivedAfterUtc);
     var identifiers = new List<MailMessageIdentifier>();
@@ -80,7 +76,7 @@ public sealed class MailClient(Settings settings) : IMailClient
 
       itemView.OrderBy.Add(ItemSchema.DateTimeReceived, SortDirection.Descending);
 
-      var findResults = service.FindItems(folderId, searchFilter, itemView);
+      var findResults = await service.FindItems(folderId, searchFilter, itemView, cancellationToken);
 
       identifiers.AddRange(findResults.Items
         .OfType<EmailMessage>()
@@ -94,10 +90,10 @@ public sealed class MailClient(Settings settings) : IMailClient
       offset += findResults.Items.Count;
     }
 
-    return Task.FromResult<IReadOnlyList<MailMessageIdentifier>>(identifiers);
+    return identifiers;
   }
 
-  public Task<IReadOnlyList<MailMessage>> GetMessagesByExternalIds(
+  public async Task<IReadOnlyList<MailMessage>> GetMessagesByExternalIds(
     string folderPath,
     IReadOnlyCollection<string> externalIds,
     CancellationToken cancellationToken = default)
@@ -106,7 +102,7 @@ public sealed class MailClient(Settings settings) : IMailClient
 
     if (externalIds.Count == 0)
     {
-      return Task.FromResult<IReadOnlyList<MailMessage>>([]);
+      return [];
     }
 
     var service = CreateService();
@@ -117,11 +113,11 @@ public sealed class MailClient(Settings settings) : IMailClient
 
     if (normalizedIds.Count == 0)
     {
-      return Task.FromResult<IReadOnlyList<MailMessage>>([]);
+      return [];
     }
 
     // Resolve the folder up front so callers keep the same contract as other folder-based operations.
-    _ = ResolveFolderId(service, folderPath);
+    _ = await ResolveFolderId(service, folderPath, cancellationToken);
 
     var propertySet = new PropertySet(
       BasePropertySet.FirstClassProperties,
@@ -131,36 +127,31 @@ public sealed class MailClient(Settings settings) : IMailClient
       EmailMessageSchema.From,
       ItemSchema.Body);
 
-    var messages = normalizedIds
-      .Select(externalId => EmailMessage.Bind(service, new ItemId(externalId), propertySet))
-      .Select(MapToMailMessage)
-      .ToList();
+    var loadedMessages = await System.Threading.Tasks.Task.WhenAll(normalizedIds.Select(externalId =>
+      EmailMessage.Bind(service, new ItemId(externalId), propertySet, cancellationToken)));
 
-    return Task.FromResult<IReadOnlyList<MailMessage>>(messages);
+    return loadedMessages.Select(MapToMailMessage).ToList();
   }
 
   private ExchangeService CreateService()
   {
+    if (string.IsNullOrWhiteSpace(settings.Url))
+    {
+      throw new InvalidOperationException("EWS URL must be configured.");
+    }
+
     var service = new ExchangeService(ExchangeVersion.Exchange2013_SP1)
     {
+      Url = new Uri(settings.Url),
       Credentials = string.IsNullOrWhiteSpace(settings.Domain)
         ? new WebCredentials(settings.Username, settings.Password)
         : new WebCredentials(settings.Username, settings.Password, settings.Domain)
     };
 
-    if (!string.IsNullOrWhiteSpace(settings.Url))
-    {
-      service.Url = new Uri(settings.Url);
-      return service;
-    }
-
-    service.AutodiscoverUrl(settings.Username, redirectUrl =>
-      Uri.TryCreate(redirectUrl, UriKind.Absolute, out var uri)
-      && uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase));
     return service;
   }
 
-  private static FolderId ResolveFolderId(ExchangeService service, string folderPath)
+  private static async Task<FolderId> ResolveFolderId(ExchangeService service, string folderPath, CancellationToken cancellationToken)
   {
     var currentFolderId = new FolderId(WellKnownFolderName.Inbox);
     var segments = folderPath.Split(['/', '\\'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
@@ -172,7 +163,7 @@ public sealed class MailClient(Settings settings) : IMailClient
         Traversal = FolderTraversal.Shallow
       };
 
-      var childFolders = service.FindFolders(currentFolderId, folderView);
+      var childFolders = await service.FindFolders(currentFolderId, folderView, cancellationToken);
       var nextFolder = childFolders.Folders.FirstOrDefault(folder =>
         folder.DisplayName.Equals(segment, StringComparison.OrdinalIgnoreCase));
 
@@ -187,7 +178,11 @@ public sealed class MailClient(Settings settings) : IMailClient
     return currentFolderId;
   }
 
-  private static IReadOnlyList<MailMessage> GetLatestMessages(ExchangeService service, FolderId folderId, int takeCount)
+  private static async Task<IReadOnlyList<MailMessage>> GetLatestMessages(
+    ExchangeService service,
+    FolderId folderId,
+    int takeCount,
+    CancellationToken cancellationToken)
   {
     if (takeCount <= 0)
     {
@@ -201,15 +196,15 @@ public sealed class MailClient(Settings settings) : IMailClient
 
     itemView.OrderBy.Add(ItemSchema.DateTimeReceived, SortDirection.Descending);
 
-    var findResults = service.FindItems(folderId, itemView);
+    var findResults = await service.FindItems(folderId, itemView, cancellationToken);
 
-    service.LoadPropertiesForItems(findResults, new PropertySet(
+    await service.LoadPropertiesForItems(findResults, new PropertySet(
       BasePropertySet.FirstClassProperties,
       ItemSchema.Subject,
       ItemSchema.DateTimeReceived,
       EmailMessageSchema.InternetMessageId,
       EmailMessageSchema.From,
-      ItemSchema.Body));
+      ItemSchema.Body), cancellationToken);
 
     var messages = new List<MailMessage>(findResults.Items.Count);
 
@@ -228,23 +223,23 @@ public sealed class MailClient(Settings settings) : IMailClient
 
   private static MailMessageIdentifier MapToIdentifier(EmailMessage email)
     => new(
-      ExternalId: email.Id?.UniqueId ?? string.Empty,
-      MessageId: email.InternetMessageId ?? string.Empty,
-      Subject: email.Subject ?? string.Empty,
-      From: email.From?.Address ?? email.From?.Name ?? string.Empty,
+      ExternalId: email.Id.UniqueId ?? string.Empty,
+      MessageId: email.InternetMessageId,
+      Subject: email.Subject,
+      From: email.From.Address,
       DateUtc: email.DateTimeReceived.ToUniversalTime());
 
   private static MailMessage MapToMailMessage(EmailMessage email)
   {
-    var body = email.Body?.Text;
-    var htmlBody = email.Body?.BodyType == BodyType.HTML ? body : null;
-    var textBody = email.Body?.BodyType == BodyType.Text ? body : null;
+    var body = email.Body.Text;
+    var htmlBody = email.Body.BodyType == BodyType.HTML ? body : null;
+    var textBody = email.Body.BodyType == BodyType.Text ? body : null;
 
     return new MailMessage(
-      ExternalId: email.Id?.UniqueId ?? string.Empty,
-      MessageId: email.InternetMessageId ?? string.Empty,
-      Subject: email.Subject ?? string.Empty,
-      From: email.From?.Address ?? email.From?.Name ?? string.Empty,
+      ExternalId: email.Id.UniqueId ?? string.Empty,
+      MessageId: email.InternetMessageId,
+      Subject: email.Subject,
+      From: email.From.Address,
       DateUtc: email.DateTimeReceived.ToUniversalTime(),
       HtmlBody: htmlBody,
       TextBody: textBody);
