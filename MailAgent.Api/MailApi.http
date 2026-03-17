@@ -1,0 +1,23 @@
+### GET digest
+@folder = Releases
+@period = 4.00:00:00
+
+GET {{base_url}}/digest?folder={{folder}}&period={{period}}
+
+
+### POST import mails
+POST {{base_url}}/mails/import
+Content-Type: application/json
+
+{
+  "Folder": "Releases",
+  "TakeCount": 40
+}
+
+
+### GET folders
+GET {{base_url}}/folders
+
+
+### GET mails
+GET {{base_url}}/mails

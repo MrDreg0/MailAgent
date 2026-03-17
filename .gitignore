@@ -24,6 +24,7 @@ artifacts/
 **/appsettings.*.json
 .DS_Store
 AGENTS.md
+*env.json
 
 # Build files
 *.log
