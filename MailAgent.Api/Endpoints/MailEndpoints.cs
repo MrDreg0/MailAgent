@@ -1,6 +1,4 @@
 using MailAgent.Api.Models;
-using MailAgent.Application;
-using MailAgent.Application.Contracts;
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Digest;
 using MailAgent.Application.Import;

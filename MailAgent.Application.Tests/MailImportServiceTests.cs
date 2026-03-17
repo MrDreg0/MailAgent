@@ -1,5 +1,4 @@
 using AutoFixture;
-using MailAgent.Application.Contracts;
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Contracts.Mail.Models;
 using MailAgent.Application.Import;

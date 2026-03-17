@@ -1,6 +1,4 @@
 using AutoFixture;
-using MailAgent.Application;
-using MailAgent.Application.Contracts;
 using MailAgent.Application.Contracts.Mail;
 using MailKit.Security;
 using Microsoft.Extensions.DependencyInjection;

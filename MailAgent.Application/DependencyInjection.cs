@@ -1,4 +1,3 @@
-using MailAgent.Application.Contracts;
 using MailAgent.Application.Contracts.Ollama;
 using MailAgent.Application.Digest;
 using MailAgent.Application.Import;

@@ -2,8 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using MailAgent.Api.Endpoints;
-using MailAgent.Application;
-using MailAgent.Application.Contracts;
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Contracts.Mail.Models;
 using MailAgent.Application.Contracts.Ollama;

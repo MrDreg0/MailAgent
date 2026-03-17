@@ -1,8 +1,5 @@
-using MailAgent.Application;
-using MailAgent.Application.Contracts;
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Contracts.Mail.Models;
-using MailAgent.Application.Import;
 using Microsoft.EntityFrameworkCore;
 
 namespace MailAgent.Database;

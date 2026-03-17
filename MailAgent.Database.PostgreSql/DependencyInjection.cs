@@ -1,4 +1,3 @@
-using MailAgent.Application.Contracts;
 using MailAgent.Application.Contracts.Mail;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

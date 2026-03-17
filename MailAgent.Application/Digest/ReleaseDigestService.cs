@@ -1,5 +1,4 @@
 using System.Text;
-using MailAgent.Application.Contracts;
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Contracts.Ollama;
 using MailAgent.Application.Ollama;

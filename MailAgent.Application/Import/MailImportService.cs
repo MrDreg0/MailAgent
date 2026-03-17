@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using MailAgent.Application.Contracts;
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Contracts.Mail.Models;
 [assembly: InternalsVisibleTo("MailAgent.Application.Tests")]
