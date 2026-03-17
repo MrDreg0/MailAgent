@@ -1,4 +1,5 @@
 using AutoFixture;
+using MailAgent.Api.BackgroundServices;
 using MailKit.Security;
 using Microsoft.Extensions.Configuration;
 
@@ -125,6 +126,71 @@ public class SettingsTests
       Assert.That(result.Url, Is.EqualTo("https://mail.example.com/EWS/Exchange.asmx"));
       Assert.That(result.Domain, Is.EqualTo("EXAMPLE"));
     });
+  }
+
+  [Test]
+  public void GetMailImportBackgroundSettings_ReturnsConfiguredValues()
+  {
+    // Given.
+    var configuration = BuildConfiguration(new Dictionary<string, string?>
+    {
+      ["MailImport:Enabled"] = "true",
+      ["MailImport:RunOnStartup"] = "false",
+      ["MailImport:Interval"] = "01:00:00",
+      ["MailImport:LookbackPeriod"] = "01:30:00",
+      ["MailImport:Folders:0"] = "/",
+      ["MailImport:Folders:1"] = "Releases",
+    });
+
+    // When.
+    var result = Settings.GetMailImportBackgroundSettings(configuration);
+
+    // Then.
+    Assert.Multiple(() =>
+    {
+      Assert.That(result.Enabled, Is.True);
+      Assert.That(result.RunOnStartup, Is.False);
+      Assert.That(result.Interval, Is.EqualTo(TimeSpan.FromHours(1)));
+      Assert.That(result.LookbackPeriod, Is.EqualTo(TimeSpan.FromMinutes(90)));
+      Assert.That(result.Folders, Is.EqualTo(new[] { "/", "Releases" }));
+    });
+  }
+
+  [Test]
+  public void GetMailImportBackgroundSettings_ReturnsDefaults_WhenSectionIsMissing()
+  {
+    // Given.
+    var configuration = BuildConfiguration(new Dictionary<string, string?>());
+
+    // When.
+    var result = Settings.GetMailImportBackgroundSettings(configuration);
+
+    // Then.
+    Assert.Multiple(() =>
+    {
+      Assert.That(result.Enabled, Is.False);
+      Assert.That(result.RunOnStartup, Is.True);
+      Assert.That(result.Interval, Is.EqualTo(TimeSpan.FromHours(1)));
+      Assert.That(result.LookbackPeriod, Is.EqualTo(TimeSpan.FromHours(1)));
+      Assert.That(result.Folders, Is.EqualTo(new[] { "/" }));
+    });
+  }
+
+  [Test]
+  public void GetMailImportBackgroundSettings_Throws_WhenIntervalIsInvalid()
+  {
+    // Given.
+    var configuration = BuildConfiguration(new Dictionary<string, string?>
+    {
+      ["MailImport:Interval"] = "bad-value",
+    });
+
+    // When.
+    var act = () => Settings.GetMailImportBackgroundSettings(configuration);
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<InvalidOperationException>()
+      .With.Message.Contains("MailImport:Interval"));
   }
 
   private static IConfiguration BuildConfiguration(IReadOnlyDictionary<string, string?> values)

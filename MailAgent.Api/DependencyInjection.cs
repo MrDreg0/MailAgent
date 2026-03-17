@@ -1,3 +1,4 @@
+using MailAgent.Api.BackgroundServices;
 using MailAgent.Mail;
 namespace MailAgent.Api;
 
@@ -18,5 +19,13 @@ internal static class DependencyInjection
       "ews" => services.AddEwsMailClient(Settings.CreateEwsSettings(mailServerSection, username, password)),
       _ => throw new InvalidOperationException($"Unsupported mail provider '{provider}'. Use 'ews' or 'imap'.")
     };
+  }
+
+  internal static IServiceCollection AddMailImportBackgroundService(this IServiceCollection services, MailImportBackgroundSettings settings)
+  {
+    services.AddSingleton(settings);
+    services.AddHostedService<MailImportBackgroundService>();
+
+    return services;
   }
 }

@@ -1,7 +1,9 @@
 using AutoFixture;
+using MailAgent.Api.BackgroundServices;
 using MailAgent.Application.Contracts.Mail;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace MailAgent.Api.Tests;
 
@@ -59,6 +61,30 @@ public class DependencyInjectionTests
     // Then.
     Assert.That(act, Throws.TypeOf<InvalidOperationException>()
       .With.Message.Contains("Unsupported mail provider"));
+  }
+
+  [Test]
+  public void AddMailImportBackgroundService_RegistersHostedServiceAndSettings()
+  {
+    // Given.
+    var services = new ServiceCollection();
+    services.AddLogging();
+    var settings = new MailImportBackgroundSettings(
+      Enabled: true,
+      RunOnStartup: true,
+      Interval: TimeSpan.FromHours(1),
+      LookbackPeriod: TimeSpan.FromHours(1),
+      Folders: ["/"]);
+
+    // When.
+    services.AddMailImportBackgroundService(settings);
+    using var serviceProvider = services.BuildServiceProvider();
+
+    // Then.
+    Assert.That(serviceProvider.GetRequiredService<MailImportBackgroundSettings>(), Is.EqualTo(settings));
+    Assert.That(
+      serviceProvider.GetServices<IHostedService>().Any(service => service is MailImportBackgroundService),
+      Is.True);
   }
 
   private static IConfiguration BuildConfiguration(IReadOnlyDictionary<string, string?> values)

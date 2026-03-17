@@ -10,7 +10,8 @@ var connectionString = configuration.GetConnectionString("Database") ?? throw ne
 webApplicationBuilder.Services
   .AddPostgreSqlDataContext(connectionString)
   .AddApplication(Settings.GetOllamaSettings(configuration))
-  .AddConfiguredMailClient(configuration);
+  .AddConfiguredMailClient(configuration)
+  .AddMailImportBackgroundService(Settings.GetMailImportBackgroundSettings(configuration));
 
 var webApplication = webApplicationBuilder.Build();
 

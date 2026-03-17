@@ -1,3 +1,4 @@
+using MailAgent.Api.BackgroundServices;
 using MailAgent.Application.Ollama;
 using EwsSettings = MailAgent.Mail.Ews.Settings;
 using ImapSettings = MailAgent.Mail.Imap.Settings;
@@ -50,5 +51,53 @@ internal static class Settings
       BaseUrl = baseUrl,
       Timeout = TimeSpan.FromMinutes(timeoutMinutes),
     };
+  }
+
+  internal static MailImportBackgroundSettings GetMailImportBackgroundSettings(IConfiguration configuration)
+  {
+    var section = configuration.GetSection("MailImport");
+    var enabled = bool.TryParse(section["Enabled"], out var parsedEnabled) && parsedEnabled;
+    var runOnStartup = !bool.TryParse(section["RunOnStartup"], out var parsedRunOnStartup) || parsedRunOnStartup;
+    var interval = TryParseTimeSpan(section["Interval"], TimeSpan.FromHours(1), "MailImport:Interval");
+    var lookbackPeriod = TryParseTimeSpan(section["LookbackPeriod"], interval, "MailImport:LookbackPeriod");
+    var folders = section
+      .GetSection("Folders")
+      .GetChildren()
+      .Select(child => child.Value)
+      .Where(folder => !string.IsNullOrWhiteSpace(folder))
+      .Select(folder => folder!)
+      .ToList();
+
+    if (interval <= TimeSpan.Zero)
+    {
+      throw new InvalidOperationException("MailImport:Interval must be greater than zero.");
+    }
+
+    if (lookbackPeriod <= TimeSpan.Zero)
+    {
+      throw new InvalidOperationException("MailImport:LookbackPeriod must be greater than zero.");
+    }
+
+    return new MailImportBackgroundSettings(
+      Enabled: enabled,
+      RunOnStartup: runOnStartup,
+      Interval: interval,
+      LookbackPeriod: lookbackPeriod,
+      Folders: folders.Count == 0 ? ["/"] : folders);
+  }
+
+  private static TimeSpan TryParseTimeSpan(string? value, TimeSpan fallbackValue, string settingPath)
+  {
+    if (string.IsNullOrWhiteSpace(value))
+    {
+      return fallbackValue;
+    }
+
+    if (!TimeSpan.TryParse(value, out var parsedValue))
+    {
+      throw new InvalidOperationException($"{settingPath} must be a valid TimeSpan.");
+    }
+
+    return parsedValue;
   }
 }
