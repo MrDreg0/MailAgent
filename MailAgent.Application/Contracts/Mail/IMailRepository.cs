@@ -10,4 +10,6 @@ public interface IMailRepository
   Task<IReadOnlyList<StoredMail>> GetByPeriodFromFolder(string folderName, TimeSpan period, CancellationToken cancellationToken = default);
 
   Task<IReadOnlySet<string>> GetExistingMessageIds(IReadOnlyCollection<string> messageIds, CancellationToken cancellationToken = default);
+
+  Task<DateTimeOffset?> GetLatestDateUtcByFolder(string folderName, CancellationToken cancellationToken = default);
 }

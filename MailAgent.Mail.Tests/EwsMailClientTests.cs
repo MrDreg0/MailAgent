@@ -36,10 +36,10 @@ public class EwsMailClientTests
   [TestCase(null)]
   [TestCase("")]
   [TestCase("   ")]
-  public void GetMessageIdentifiersFromFolder_Throws_WhenFolderPathIsNullOrWhiteSpace(string? folderPath)
+  public void GetMessageIdentifiersFromFolderSince_Throws_WhenFolderPathIsNullOrWhiteSpace(string? folderPath)
   {
     // When.
-    var act = async () => await _sut.GetMessageIdentifiersFromFolder(folderPath!, TimeSpan.FromHours(1));
+    var act = async () => await _sut.GetMessageIdentifiersFromFolderSince(folderPath!, DateTimeOffset.UtcNow);
 
     // Then.
     Assert.That(act, Throws.InstanceOf<ArgumentException>());

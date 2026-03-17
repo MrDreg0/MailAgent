@@ -142,11 +142,11 @@ public class MailImportServiceTests
   }
 
   [Test]
-  public async Task ImportFromPeriod_LoadsOnlyMessagesMissingInRepository()
+  public async Task ImportFromDate_LoadsOnlyMessagesMissingInRepository()
   {
     // Given.
     var folderName = "Releases";
-    var period = TimeSpan.FromHours(1);
+    var fromUtc = DateTimeOffset.Parse("2026-03-16T10:00:00Z");
     using var cancellationTokenSource = new CancellationTokenSource();
     var cancellationToken = cancellationTokenSource.Token;
 
@@ -170,7 +170,7 @@ public class MailImportServiceTests
       textBody: null);
 
     _mailClient
-      .GetMessageIdentifiersFromFolder(folderName, period, cancellationToken)
+      .GetMessageIdentifiersFromFolderSince(folderName, fromUtc, cancellationToken)
       .Returns([existingIdentifier, newIdentifier]);
 
     _mailRepository
@@ -192,10 +192,10 @@ public class MailImportServiceTests
       .Returns(Task.CompletedTask);
 
     // When.
-    var result = await _sut.ImportFromPeriod(folderName, period, cancellationToken);
+    var result = await _sut.ImportFromDate(folderName, fromUtc, cancellationToken);
 
     // Then.
-    await _mailClient.Received(1).GetMessageIdentifiersFromFolder(folderName, period, cancellationToken);
+    await _mailClient.Received(1).GetMessageIdentifiersFromFolderSince(folderName, fromUtc, cancellationToken);
     await _mailRepository.Received(1).GetExistingMessageIds(Arg.Any<IReadOnlyCollection<string>>(), cancellationToken);
     await _mailClient.Received(1).GetMessagesByExternalIds(folderName, Arg.Any<IReadOnlyCollection<string>>(), cancellationToken);
     await _mailRepository.Received(1).SaveNewAsync(Arg.Any<IReadOnlyCollection<StoredMail>>(), cancellationToken);
@@ -208,11 +208,11 @@ public class MailImportServiceTests
   }
 
   [Test]
-  public async Task ImportFromPeriod_ReturnsEmptyResult_WhenAllMessagesAlreadyExist()
+  public async Task ImportFromDate_ReturnsEmptyResult_WhenAllMessagesAlreadyExist()
   {
     // Given.
     var folderName = "Releases";
-    var period = TimeSpan.FromHours(1);
+    var fromUtc = DateTimeOffset.Parse("2026-03-16T10:00:00Z");
     var identifiers = new[]
     {
       new MailMessageIdentifier(
@@ -224,7 +224,7 @@ public class MailImportServiceTests
     };
 
     _mailClient
-      .GetMessageIdentifiersFromFolder(folderName, period, Arg.Any<CancellationToken>())
+      .GetMessageIdentifiersFromFolderSince(folderName, fromUtc, Arg.Any<CancellationToken>())
       .Returns(identifiers);
 
     _mailRepository
@@ -232,7 +232,7 @@ public class MailImportServiceTests
       .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "existing-message-id" });
 
     // When.
-    var result = await _sut.ImportFromPeriod(folderName, period);
+    var result = await _sut.ImportFromDate(folderName, fromUtc);
 
     // Then.
     Assert.That(result.Total, Is.EqualTo(0));
@@ -240,13 +240,49 @@ public class MailImportServiceTests
     await _mailRepository.DidNotReceive().SaveNewAsync(Arg.Any<IReadOnlyCollection<StoredMail>>(), Arg.Any<CancellationToken>());
   }
 
+  [Test]
+  public async Task ImportLatestFromFolderAsync_SavesMailsInAscendingDateOrder()
+  {
+    // Given.
+    var folderName = "Releases";
+    var takeCount = 2;
+    var newerMessage = CreateMailMessage(
+      messageId: "newer-message-id",
+      htmlBody: "<p>newer</p>",
+      textBody: null,
+      dateUtc: DateTimeOffset.Parse("2026-03-17T11:00:00Z"));
+    var olderMessage = CreateMailMessage(
+      messageId: "older-message-id",
+      htmlBody: "<p>older</p>",
+      textBody: null,
+      dateUtc: DateTimeOffset.Parse("2026-03-17T10:00:00Z"));
+
+    _mailClient
+      .GetLatestFromFolderAsync(folderName, takeCount, Arg.Any<CancellationToken>())
+      .Returns([newerMessage, olderMessage]);
+
+    IReadOnlyCollection<StoredMail>? savedMails = null;
+    _mailRepository
+      .SaveNewAsync(Arg.Do<IReadOnlyCollection<StoredMail>>(mails => savedMails = mails), Arg.Any<CancellationToken>())
+      .Returns(Task.CompletedTask);
+
+    // When.
+    await _sut.ImportLatestFromFolderAsync(folderName, takeCount);
+
+    // Then.
+    Assert.That(savedMails, Is.Not.Null);
+    Assert.That(savedMails!.Select(mail => mail.MessageId), Is.EqualTo(new[] { "older-message-id", "newer-message-id" }));
+  }
+
   private MailMessage CreateMailMessage(
     string? messageId = null,
     string? htmlBody = null,
-    string? textBody = null)
+    string? textBody = null,
+    DateTimeOffset? dateUtc = null)
   {
     return _fixture.Build<MailMessage>()
       .With(x => x.MessageId, messageId ?? _fixture.Create<string>())
+      .With(x => x.DateUtc, dateUtc ?? _fixture.Create<DateTimeOffset>())
       .With(x => x.HtmlBody, htmlBody)
       .With(x => x.TextBody, textBody)
       .Create();

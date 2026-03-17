@@ -19,22 +19,21 @@ public sealed class MailImportService(
 
     await mailRepository.SaveNewAsync(mailCandidates, cancellationToken);
 
-    return new MailImportResult(messageSummaries);
+    return new MailImportResult(
+      Latest: messageSummaries,
+      IdentifiersFound: fetchedMessages.Count,
+      Loaded: fetchedMessages.Count,
+      SaveCandidates: mailCandidates.Count);
   }
 
-  public async Task<MailImportResult> ImportFromPeriod(
+  public async Task<MailImportResult> ImportFromDate(
     string folderName,
-    TimeSpan period,
+    DateTimeOffset fromUtc,
     CancellationToken cancellationToken = default)
   {
     ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
 
-    if (period <= TimeSpan.Zero)
-    {
-      return new([]);
-    }
-
-    var messageIdentifiers = await mailClient.GetMessageIdentifiersFromFolder(folderName, period, cancellationToken);
+    var messageIdentifiers = await mailClient.GetMessageIdentifiersFromFolderSince(folderName, fromUtc, cancellationToken);
     var candidateIdentifiers = messageIdentifiers
       .Where(identifier => !string.IsNullOrWhiteSpace(identifier.NormalizedMessageId))
       .GroupBy(identifier => identifier.NormalizedMessageId, StringComparer.OrdinalIgnoreCase)
@@ -51,7 +50,12 @@ public sealed class MailImportService(
 
     if (identifiersToLoad.Count == 0)
     {
-      return new([]);
+      return new MailImportResult(
+        Latest: [],
+        IdentifiersFound: messageIdentifiers.Count,
+        AlreadyStored: existingMessageIds.Count,
+        Loaded: 0,
+        SaveCandidates: 0);
     }
 
     var fetchedMessages = await mailClient.GetMessagesByExternalIds(
@@ -63,7 +67,12 @@ public sealed class MailImportService(
 
     await mailRepository.SaveNewAsync(mailCandidates, cancellationToken);
 
-    return new MailImportResult(messageSummaries);
+    return new MailImportResult(
+      Latest: messageSummaries,
+      IdentifiersFound: messageIdentifiers.Count,
+      AlreadyStored: existingMessageIds.Count,
+      Loaded: fetchedMessages.Count,
+      SaveCandidates: mailCandidates.Count);
   }
 
   internal static StoredMail? MapToStoredMail(string folderName, MailMessage message, string markdownBody, DateTimeOffset insertedAtUtc)
@@ -112,6 +121,6 @@ public sealed class MailImportService(
         markdownBody));
     }
 
-    return (messageSummaries, mailCandidates);
+    return (messageSummaries, mailCandidates.OrderBy(mail => mail.DateUtc).ToList());
   }
 }

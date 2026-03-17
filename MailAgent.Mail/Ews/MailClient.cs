@@ -7,6 +7,7 @@ namespace MailAgent.Mail.Ews;
 public sealed class MailClient(Settings settings) : IMailClient
 {
   private const int PageSize = 200;
+  private const int MaxConcurrentMessageLoads = 4;
 
   public async Task<IReadOnlyList<string>> GetInboxSubfolderNamesAsync(CancellationToken cancellationToken = default)
   {
@@ -43,22 +44,16 @@ public sealed class MailClient(Settings settings) : IMailClient
     return GetLatestMessages(service, new FolderId(WellKnownFolderName.Inbox), takeCount, cancellationToken);
   }
 
-  public async Task<IReadOnlyList<MailMessageIdentifier>> GetMessageIdentifiersFromFolder(
+  public async Task<IReadOnlyList<MailMessageIdentifier>> GetMessageIdentifiersFromFolderSince(
     string folderPath,
-    TimeSpan period,
+    DateTimeOffset fromUtc,
     CancellationToken cancellationToken = default)
   {
     ArgumentException.ThrowIfNullOrWhiteSpace(folderPath);
 
-    if (period <= TimeSpan.Zero)
-    {
-      return [];
-    }
-
     var service = CreateService();
     var folderId = await ResolveFolderId(service, folderPath, cancellationToken);
-    var receivedAfterUtc = DateTime.UtcNow - period;
-    var searchFilter = new SearchFilter.IsGreaterThanOrEqualTo(ItemSchema.DateTimeReceived, receivedAfterUtc);
+    var searchFilter = new SearchFilter.IsGreaterThanOrEqualTo(ItemSchema.DateTimeReceived, fromUtc.UtcDateTime);
     var identifiers = new List<MailMessageIdentifier>();
     var offset = 0;
 
@@ -127,10 +122,24 @@ public sealed class MailClient(Settings settings) : IMailClient
       EmailMessageSchema.From,
       ItemSchema.Body);
 
-    var loadedMessages = await System.Threading.Tasks.Task.WhenAll(normalizedIds.Select(externalId =>
-      EmailMessage.Bind(service, new ItemId(externalId), propertySet, cancellationToken)));
+    var semaphore = new SemaphoreSlim(MaxConcurrentMessageLoads, MaxConcurrentMessageLoads);
 
-    return loadedMessages.Select(MapToMailMessage).ToList();
+    try
+    {
+      var loadTasks = new List<Task<EmailMessage>>(normalizedIds.Count);
+      
+      loadTasks.AddRange(
+        normalizedIds.Select(
+          externalId => LoadMessage(externalId, service, propertySet, semaphore, cancellationToken)));
+
+      var loadedMessages = await System.Threading.Tasks.Task.WhenAll(loadTasks);
+
+      return loadedMessages.Select(MapToMailMessage).ToList();
+    }
+    finally
+    {
+      semaphore.Dispose();
+    }
   }
 
   private ExchangeService CreateService()
@@ -228,6 +237,25 @@ public sealed class MailClient(Settings settings) : IMailClient
       Subject: email.Subject,
       From: email.From.Address,
       DateUtc: email.DateTimeReceived.ToUniversalTime());
+
+  private static async Task<EmailMessage> LoadMessage(
+    string externalId,
+    ExchangeService service,
+    PropertySet propertySet,
+    SemaphoreSlim semaphore,
+    CancellationToken cancellationToken)
+  {
+    await semaphore.WaitAsync(cancellationToken);
+
+    try
+    {
+      return await EmailMessage.Bind(service, new ItemId(externalId), propertySet, cancellationToken);
+    }
+    finally
+    {
+      semaphore.Release();
+    }
+  }
 
   private static MailMessage MapToMailMessage(EmailMessage email)
   {

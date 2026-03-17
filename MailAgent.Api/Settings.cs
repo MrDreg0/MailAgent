@@ -59,7 +59,8 @@ internal static class Settings
     var enabled = bool.TryParse(section["Enabled"], out var parsedEnabled) && parsedEnabled;
     var runOnStartup = !bool.TryParse(section["RunOnStartup"], out var parsedRunOnStartup) || parsedRunOnStartup;
     var interval = TryParseTimeSpan(section["Interval"], TimeSpan.FromHours(1), "MailImport:Interval");
-    var lookbackPeriod = TryParseTimeSpan(section["LookbackPeriod"], interval, "MailImport:LookbackPeriod");
+    var initialLookbackPeriod = TryParseTimeSpan(section["InitialLookbackPeriod"], TimeSpan.FromHours(24), "MailImport:InitialLookbackPeriod");
+    var overlapPeriod = TryParseTimeSpan(section["OverlapPeriod"], TimeSpan.FromMinutes(30), "MailImport:OverlapPeriod");
     var folders = section
       .GetSection("Folders")
       .GetChildren()
@@ -73,16 +74,22 @@ internal static class Settings
       throw new InvalidOperationException("MailImport:Interval must be greater than zero.");
     }
 
-    if (lookbackPeriod <= TimeSpan.Zero)
+    if (initialLookbackPeriod <= TimeSpan.Zero)
     {
-      throw new InvalidOperationException("MailImport:LookbackPeriod must be greater than zero.");
+      throw new InvalidOperationException("MailImport:InitialLookbackPeriod must be greater than zero.");
+    }
+
+    if (overlapPeriod < TimeSpan.Zero)
+    {
+      throw new InvalidOperationException("MailImport:OverlapPeriod must be zero or greater.");
     }
 
     return new MailImportBackgroundSettings(
       Enabled: enabled,
       RunOnStartup: runOnStartup,
       Interval: interval,
-      LookbackPeriod: lookbackPeriod,
+      InitialLookbackPeriod: initialLookbackPeriod,
+      OverlapPeriod: overlapPeriod,
       Folders: folders.Count == 0 ? ["/"] : folders);
   }
 

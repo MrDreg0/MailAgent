@@ -124,6 +124,15 @@ public sealed class MailRepository(DataContext dbContext) : IMailRepository
     return existingIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
   }
 
+  public async Task<DateTimeOffset?> GetLatestDateUtcByFolder(string folderName, CancellationToken cancellationToken = default)
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
+
+    return await dbContext.Mails
+      .Where(mail => mail.Folder == folderName)
+      .MaxAsync(mail => (DateTimeOffset?)mail.DateUtc, cancellationToken);
+  }
+
   private static MailRecord MapToRecord(StoredMail mail)
     => new(
       Id: mail.Id,

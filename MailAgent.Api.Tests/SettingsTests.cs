@@ -137,7 +137,8 @@ public class SettingsTests
       ["MailImport:Enabled"] = "true",
       ["MailImport:RunOnStartup"] = "false",
       ["MailImport:Interval"] = "01:00:00",
-      ["MailImport:LookbackPeriod"] = "01:30:00",
+      ["MailImport:InitialLookbackPeriod"] = "1.00:00:00",
+      ["MailImport:OverlapPeriod"] = "00:30:00",
       ["MailImport:Folders:0"] = "/",
       ["MailImport:Folders:1"] = "Releases",
     });
@@ -151,7 +152,8 @@ public class SettingsTests
       Assert.That(result.Enabled, Is.True);
       Assert.That(result.RunOnStartup, Is.False);
       Assert.That(result.Interval, Is.EqualTo(TimeSpan.FromHours(1)));
-      Assert.That(result.LookbackPeriod, Is.EqualTo(TimeSpan.FromMinutes(90)));
+      Assert.That(result.InitialLookbackPeriod, Is.EqualTo(TimeSpan.FromDays(1)));
+      Assert.That(result.OverlapPeriod, Is.EqualTo(TimeSpan.FromMinutes(30)));
       Assert.That(result.Folders, Is.EqualTo(new[] { "/", "Releases" }));
     });
   }
@@ -171,7 +173,8 @@ public class SettingsTests
       Assert.That(result.Enabled, Is.False);
       Assert.That(result.RunOnStartup, Is.True);
       Assert.That(result.Interval, Is.EqualTo(TimeSpan.FromHours(1)));
-      Assert.That(result.LookbackPeriod, Is.EqualTo(TimeSpan.FromHours(1)));
+      Assert.That(result.InitialLookbackPeriod, Is.EqualTo(TimeSpan.FromDays(1)));
+      Assert.That(result.OverlapPeriod, Is.EqualTo(TimeSpan.FromMinutes(30)));
       Assert.That(result.Folders, Is.EqualTo(new[] { "/" }));
     });
   }

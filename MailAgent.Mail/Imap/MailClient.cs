@@ -35,25 +35,19 @@ public sealed class MailClient(Settings settings) : IMailClient
     return await GetLatestMessagesAsync(imapClient.Inbox, takeCount, cancellationToken);
   }
 
-  public async Task<IReadOnlyList<MailMessageIdentifier>> GetMessageIdentifiersFromFolder(
+  public async Task<IReadOnlyList<MailMessageIdentifier>> GetMessageIdentifiersFromFolderSince(
     string folderPath,
-    TimeSpan period,
+    DateTimeOffset fromUtc,
     CancellationToken cancellationToken = default)
   {
     ArgumentException.ThrowIfNullOrWhiteSpace(folderPath);
-
-    if (period <= TimeSpan.Zero)
-    {
-      return [];
-    }
 
     using var imapClient = await ConnectAsync(cancellationToken);
     var folder = await ResolveFolderAsync(imapClient.Inbox, folderPath, cancellationToken);
 
     await folder.OpenAsync(FolderAccess.ReadOnly, cancellationToken);
 
-    var receivedAfterUtc = DateTime.UtcNow - period;
-    var uniqueIds = await folder.SearchAsync(SearchQuery.DeliveredAfter(receivedAfterUtc), cancellationToken);
+    var uniqueIds = await folder.SearchAsync(SearchQuery.DeliveredAfter(fromUtc.UtcDateTime.AddSeconds(-1)), cancellationToken);
 
     if (uniqueIds.Count == 0)
     {

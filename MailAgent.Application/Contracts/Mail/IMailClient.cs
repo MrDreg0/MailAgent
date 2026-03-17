@@ -9,7 +9,7 @@ public interface IMailClient
 
   Task<IReadOnlyList<MailMessage>> GetLatestFromInboxAsync(int takeCount, CancellationToken cancellationToken = default);
 
-  Task<IReadOnlyList<MailMessageIdentifier>> GetMessageIdentifiersFromFolder(string folderPath, TimeSpan period, CancellationToken cancellationToken = default);
+  Task<IReadOnlyList<MailMessageIdentifier>> GetMessageIdentifiersFromFolderSince(string folderPath, DateTimeOffset fromUtc, CancellationToken cancellationToken = default);
 
   Task<IReadOnlyList<MailMessage>> GetMessagesByExternalIds(string folderPath, IReadOnlyCollection<string> externalIds, CancellationToken cancellationToken = default);
 }

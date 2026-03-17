@@ -1,4 +1,5 @@
 using MailAgent.Application.Import;
+using MailAgent.Application.Contracts.Mail;
 
 namespace MailAgent.Api.BackgroundServices;
 
@@ -32,17 +33,28 @@ internal sealed class MailImportBackgroundService(
   {
     foreach (var folder in settings.Folders)
     {
+      DateTimeOffset? latestDateUtc = null;
+      var fromUtc = DateTimeOffset.UtcNow.Subtract(settings.InitialLookbackPeriod);
+
       try
       {
         using var scope = serviceScopeFactory.CreateScope();
         var mailImportService = scope.ServiceProvider.GetRequiredService<MailImportService>();
-        var result = await mailImportService.ImportFromPeriod(folder, settings.LookbackPeriod, cancellationToken);
+        var mailRepository = scope.ServiceProvider.GetRequiredService<IMailRepository>();
+        latestDateUtc = await mailRepository.GetLatestDateUtcByFolder(folder, cancellationToken);
+        fromUtc = latestDateUtc?.Subtract(settings.OverlapPeriod) ?? fromUtc;
+        var result = await mailImportService.ImportFromDate(folder, fromUtc, cancellationToken);
 
         logger.LogInformation(
-          "Imported {ImportedCount} mails from folder '{Folder}' for period {LookbackPeriod}.",
-          result.Total,
+          "Mail import for folder '{Folder}': latestDateUtc={LatestDateUtc}, fromUtc={FromUtc}, identifiersFound={IdentifiersFound}, alreadyStored={AlreadyStored}, loaded={Loaded}, saveCandidates={SaveCandidates}, imported={ImportedCount}.",
           folder,
-          settings.LookbackPeriod);
+          latestDateUtc,
+          fromUtc,
+          result.IdentifiersFound,
+          result.AlreadyStored,
+          result.Loaded,
+          result.SaveCandidates,
+          result.Total);
       }
       catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
       {
@@ -52,9 +64,9 @@ internal sealed class MailImportBackgroundService(
       {
         logger.LogError(
           exception,
-          "Mail import failed for folder '{Folder}' with lookback period {LookbackPeriod}.",
+          "Mail import failed for folder '{Folder}' since {FromUtc}.",
           folder,
-          settings.LookbackPeriod);
+          fromUtc);
       }
     }
   }

@@ -73,7 +73,8 @@ public class DependencyInjectionTests
       Enabled: true,
       RunOnStartup: true,
       Interval: TimeSpan.FromHours(1),
-      LookbackPeriod: TimeSpan.FromHours(1),
+      InitialLookbackPeriod: TimeSpan.FromDays(1),
+      OverlapPeriod: TimeSpan.FromMinutes(30),
       Folders: ["/"]);
 
     // When.
