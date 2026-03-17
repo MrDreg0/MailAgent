@@ -1,5 +1,7 @@
 using AutoFixture;
 using MailAgent.Application;
+using MailAgent.Application.Contracts.Mail.Models;
+using MailAgent.Application.Import;
 using Microsoft.EntityFrameworkCore;
 
 namespace MailAgent.Database.Tests;
@@ -118,6 +120,22 @@ public class MailRepositoryTests
 
     // Then.
     Assert.That(result, Is.Empty);
+  }
+
+  [Test]
+  public async Task GetExistingMessageIds_ReturnsOnlyExistingIds_IgnoringCase()
+  {
+    // Given.
+    _dbContext.Mails.AddRange(
+      new MailRecord(1, "Releases", "message-1", DateTimeOffset.Parse("2026-03-16T08:00:00Z"), "a@example.com", "older", "raw-1", "md-1", "2026-03-16 08:00:00Z"),
+      new MailRecord(2, "Releases", "message-2", DateTimeOffset.Parse("2026-03-16T10:00:00Z"), "b@example.com", "newest", "raw-2", "md-2", "2026-03-16 10:00:00Z"));
+    await _dbContext.SaveChangesAsync();
+
+    // When.
+    var result = await _sut.GetExistingMessageIds(["MESSAGE-1", "missing-message", "message-2"]);
+
+    // Then.
+    Assert.That(result, Is.EquivalentTo(["message-1", "message-2"]));
   }
 
   private DataContext CreateDataContext()

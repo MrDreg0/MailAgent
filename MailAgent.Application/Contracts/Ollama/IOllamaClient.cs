@@ -1,5 +1,6 @@
+using MailAgent.Application.Ollama;
 using Refit;
-namespace MailAgent.Application.Ollama;
+namespace MailAgent.Application.Contracts.Ollama;
 
 public interface IOllamaClient
 {

@@ -1,7 +1,6 @@
 using HtmlAgilityPack;
 using ReverseMarkdown;
-
-namespace MailAgent.Application;
+namespace MailAgent.Application.Import;
 
 public sealed class EmailBodyConverter
 {

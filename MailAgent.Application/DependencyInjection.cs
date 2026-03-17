@@ -1,3 +1,7 @@
+using MailAgent.Application.Contracts;
+using MailAgent.Application.Contracts.Ollama;
+using MailAgent.Application.Digest;
+using MailAgent.Application.Import;
 using MailAgent.Application.Ollama;
 using Microsoft.Extensions.DependencyInjection;
 using Refit;

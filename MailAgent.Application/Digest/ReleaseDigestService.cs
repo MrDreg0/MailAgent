@@ -1,7 +1,9 @@
 using System.Text;
+using MailAgent.Application.Contracts;
+using MailAgent.Application.Contracts.Mail;
+using MailAgent.Application.Contracts.Ollama;
 using MailAgent.Application.Ollama;
-
-namespace MailAgent.Application;
+namespace MailAgent.Application.Digest;
 
 public sealed class ReleaseDigestService(
   IMailRepository mailRepository,
@@ -113,7 +115,3 @@ public sealed class ReleaseDigestService(
     return stringBuilder.ToString();
   }
 }
-
-public sealed record ReleaseDigestResult(int TotalFetched, int Selected, string Digest);
-
-internal sealed record DigestEmail(int Id, string Subject, string From, DateTime DateUtc, string BodyPreview);

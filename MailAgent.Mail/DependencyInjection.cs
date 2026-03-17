@@ -1,4 +1,6 @@
 using MailAgent.Application;
+using MailAgent.Application.Contracts;
+using MailAgent.Application.Contracts.Mail;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace MailAgent.Mail;

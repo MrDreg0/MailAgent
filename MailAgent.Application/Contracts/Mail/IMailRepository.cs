@@ -1,4 +1,5 @@
-namespace MailAgent.Application;
+using MailAgent.Application.Contracts.Mail.Models;
+namespace MailAgent.Application.Contracts.Mail;
 
 public interface IMailRepository
 {
@@ -7,4 +8,6 @@ public interface IMailRepository
   Task<IReadOnlyList<StoredMail>> GetLatestFromFolderAsync(string folderName, int takeCount, CancellationToken cancellationToken = default);
   
   Task<IReadOnlyList<StoredMail>> GetByPeriodFromFolder(string folderName, TimeSpan period, CancellationToken cancellationToken = default);
+
+  Task<IReadOnlySet<string>> GetExistingMessageIds(IReadOnlyCollection<string> messageIds, CancellationToken cancellationToken = default);
 }

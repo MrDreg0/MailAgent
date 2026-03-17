@@ -1,3 +1,5 @@
+using MailAgent.Application.Contracts;
+using MailAgent.Application.Contracts.Mail;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 namespace MailAgent.Database.PostgreSql;
@@ -13,7 +15,7 @@ public static class DependencyInjection
         .EnableSensitiveDataLogging()
         .UseNpgsql(connectionString));
     services.AddScoped<DataContext>(serviceProvider => serviceProvider.GetRequiredService<PostgreSqlDataContext>());
-    services.AddScoped<MailAgent.Application.IMailRepository, MailRepository>();
+    services.AddScoped<IMailRepository, MailRepository>();
 
     return services;
   }

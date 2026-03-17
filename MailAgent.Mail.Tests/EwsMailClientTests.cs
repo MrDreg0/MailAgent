@@ -32,4 +32,28 @@ public class EwsMailClientTests
     // Then.
     Assert.That(act, Throws.InstanceOf<ArgumentException>());
   }
+
+  [TestCase(null)]
+  [TestCase("")]
+  [TestCase("   ")]
+  public void GetMessageIdentifiersFromFolder_Throws_WhenFolderPathIsNullOrWhiteSpace(string? folderPath)
+  {
+    // When.
+    var act = async () => await _sut.GetMessageIdentifiersFromFolder(folderPath!, TimeSpan.FromHours(1));
+
+    // Then.
+    Assert.That(act, Throws.InstanceOf<ArgumentException>());
+  }
+
+  [TestCase(null)]
+  [TestCase("")]
+  [TestCase("   ")]
+  public void GetMessagesByExternalIds_Throws_WhenFolderPathIsNullOrWhiteSpace(string? folderPath)
+  {
+    // When.
+    var act = async () => await _sut.GetMessagesByExternalIds(folderPath!, ["id-1"]);
+
+    // Then.
+    Assert.That(act, Throws.InstanceOf<ArgumentException>());
+  }
 }

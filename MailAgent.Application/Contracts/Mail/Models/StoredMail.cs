@@ -1,4 +1,4 @@
-namespace MailAgent.Application;
+namespace MailAgent.Application.Contracts.Mail.Models;
 
 public sealed record StoredMail(
   int Id,

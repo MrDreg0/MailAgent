@@ -1,4 +1,8 @@
 using MailAgent.Application;
+using MailAgent.Application.Contracts;
+using MailAgent.Application.Contracts.Mail;
+using MailAgent.Application.Contracts.Mail.Models;
+using MailAgent.Application.Import;
 using Microsoft.EntityFrameworkCore;
 
 namespace MailAgent.Database;
@@ -96,6 +100,31 @@ public sealed class MailRepository(DataContext dbContext) : IMailRepository
         mail.MarkdownBody,
         mail.InsertedAt))
       .ToListAsync(cancellationToken);
+  }
+
+  public async Task<IReadOnlySet<string>> GetExistingMessageIds(IReadOnlyCollection<string> messageIds, CancellationToken cancellationToken = default)
+  {
+    if (messageIds.Count == 0)
+    {
+      return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    var normalizedIds = messageIds
+      .Where(messageId => !string.IsNullOrWhiteSpace(messageId))
+      .Select(messageId => messageId.Trim())
+      .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    if (normalizedIds.Count == 0)
+    {
+      return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    var existingIds = await dbContext.Mails
+      .Where(mail => normalizedIds.Contains(mail.MessageId))
+      .Select(mail => mail.MessageId)
+      .ToListAsync(cancellationToken);
+
+    return existingIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
   }
 
   private static MailRecord MapToRecord(StoredMail mail)

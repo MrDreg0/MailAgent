@@ -1,3 +1,4 @@
+using MailAgent.Application.Import;
 namespace MailAgent.Application.Tests;
 
 [TestFixture]

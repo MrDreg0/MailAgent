@@ -1,7 +1,14 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using MailAgent.Api.Endpoints;
 using MailAgent.Application;
+using MailAgent.Application.Contracts;
+using MailAgent.Application.Contracts.Mail;
+using MailAgent.Application.Contracts.Mail.Models;
+using MailAgent.Application.Contracts.Ollama;
+using MailAgent.Application.Digest;
+using MailAgent.Application.Import;
 using MailAgent.Application.Ollama;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
@@ -85,7 +92,7 @@ public class MailEndpointsTests
     using var client = await CreateClientAsync();
 
     // When.
-    var response = await client.GetAsync("/test-mail");
+    var response = await client.PostAsJsonAsync("/mails/import", new { folder = "Releases", takeCount = 5 });
 
     // Then.
     Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -104,7 +111,7 @@ public class MailEndpointsTests
   public async Task GetDigest_ReturnsDigestResultFromService()
   {
     // Given.
-    _mailRepository.GetLatestFromFolderAsync("Releases", 5, Arg.Any<CancellationToken>())
+    _mailRepository.GetByPeriodFromFolder("Releases", TimeSpan.FromHours(1), Arg.Any<CancellationToken>())
       .Returns([
         new StoredMail(0, "Releases", "message-id", DateTimeOffset.Parse("2026-03-16T10:00:00Z"), "from@example.com", "Service release", "raw", "release body", "2026-03-16 10:00:00Z"),
       ]);
@@ -117,7 +124,7 @@ public class MailEndpointsTests
     using var client = await CreateClientAsync();
 
     // When.
-    var response = await client.GetAsync("/digest");
+    var response = await client.GetAsync("/digest?folder=Releases&period=01:00:00");
 
     // Then.
     Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
