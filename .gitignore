@@ -26,6 +26,7 @@ artifacts/
 AGENTS.md
 *env.json
 *.env
+.playwright-cli
 
 # Build files
 *.log

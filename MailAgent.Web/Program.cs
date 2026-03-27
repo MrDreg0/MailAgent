@@ -6,6 +6,8 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("Database")
   ?? throw new InvalidOperationException("Database connection string is missing");
 
+builder.Services.AddBlazorBootstrap();
+
 builder.Services.AddRazorComponents()
   .AddInteractiveServerComponents();
 

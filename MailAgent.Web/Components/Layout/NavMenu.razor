@@ -1,23 +1,37 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="">MailAgent</a>
-  </div>
-</div>
+﻿<Sidebar @ref="_sidebar"
+         Href="/"
+         IconName="IconName.EnvelopeFill"
+         Title="MailAgent"
+         DataProvider="SidebarDataProvider" />
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+@code {
+  private Sidebar _sidebar = default!;
+  private IEnumerable<NavItem>? _navItems;
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-  <nav class="nav flex-column">
-    <div class="nav-item px-3">
-      <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-        <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-      </NavLink>
-    </div>
+  public Task Toggle()
+  {
+    _sidebar.ToggleSidebar();
+    return Task.CompletedTask;
+  }
 
-    <div class="nav-item px-3">
-      <NavLink class="nav-link" href="messages">
-        <span class="bi bi-table-nav-menu" aria-hidden="true"></span> Messages
-      </NavLink>
-    </div>
-  </nav>
-</div>
+  private Task<SidebarDataProviderResult> SidebarDataProvider(SidebarDataProviderRequest request)
+  {
+    _navItems ??=
+    [
+      new NavItem
+      {
+        Href = "/",
+        IconName = IconName.HouseDoorFill,
+        Text = "Home"
+      },
+      new NavItem
+      {
+        Href = "/messages",
+        IconName = IconName.Table,
+        Text = "Messages"
+      }
+    ];
+
+    return Task.FromResult(request.ApplyTo(_navItems));
+  }
+}
