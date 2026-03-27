@@ -1,0 +1,26 @@
+.mail-preview-frame-wrapper {
+  overflow: hidden;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background: #fff;
+}
+
+.mail-preview-frame {
+  display: block;
+  width: 100%;
+  min-height: 24rem;
+  height: min(50vh, 30rem);
+  border: 0;
+  background: #fff;
+}
+
+.mail-preview-plain {
+  padding: 1rem;
+  overflow: auto;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background: var(--bs-tertiary-bg);
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

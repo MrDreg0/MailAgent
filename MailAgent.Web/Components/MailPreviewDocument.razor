@@ -1,0 +1,152 @@
+@using System.Text.Encodings.Web
+@using System.Text.RegularExpressions
+
+@if (LooksLikeHtml(Body))
+{
+  <div class="mail-preview-frame-wrapper">
+    <iframe class="mail-preview-frame"
+            sandbox
+            referrerpolicy="no-referrer"
+            srcdoc="@BuildPreviewDocument(Body)"></iframe>
+  </div>
+}
+else
+{
+  <pre class="mail-preview-plain mb-0">@GetDisplayedRawBody(Body)</pre>
+}
+
+@code {
+  private static readonly Regex ScriptTagRegex = new(
+    "<script\\b[^<]*(?:(?!</script>)<[^<]*)*</script>",
+    RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+  private static readonly Regex EventHandlerAttributeRegex = new(
+    "\\son\\w+\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)",
+    RegexOptions.IgnoreCase | RegexOptions.Compiled);
+  private static readonly Regex JavaScriptProtocolAttributeRegex = new(
+    "\\s(?:href|src)\\s*=\\s*(?:\"\\s*javascript:[^\"]*\"|'\\s*javascript:[^']*')",
+    RegexOptions.IgnoreCase | RegexOptions.Compiled);
+  private static readonly Regex BaseTagRegex = new(
+    "<base\\b[^>]*>",
+    RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+  [Parameter]
+  public string Body { get; set; } = string.Empty;
+
+  private static bool LooksLikeHtml(string rawBody)
+  {
+    if (string.IsNullOrWhiteSpace(rawBody))
+    {
+      return false;
+    }
+
+    return rawBody.Contains("<html", StringComparison.OrdinalIgnoreCase)
+      || rawBody.Contains("<body", StringComparison.OrdinalIgnoreCase)
+      || rawBody.Contains("<div", StringComparison.OrdinalIgnoreCase)
+      || rawBody.Contains("<table", StringComparison.OrdinalIgnoreCase)
+      || rawBody.Contains("<p", StringComparison.OrdinalIgnoreCase)
+      || rawBody.Contains("<br", StringComparison.OrdinalIgnoreCase);
+  }
+
+  private static string GetDisplayedRawBody(string rawBody)
+  {
+    return string.IsNullOrWhiteSpace(rawBody)
+      ? "У письма нет сохраненного raw body."
+      : rawBody;
+  }
+
+  private static string BuildPreviewDocument(string rawBody)
+  {
+    if (string.IsNullOrWhiteSpace(rawBody))
+    {
+      return BuildPlainTextDocument("У письма нет сохраненного raw body.");
+    }
+
+    if (!LooksLikeHtml(rawBody))
+    {
+      return BuildPlainTextDocument(rawBody);
+    }
+
+    var sanitizedHtml = SanitizeHtml(rawBody);
+
+    if (sanitizedHtml.Contains("<html", StringComparison.OrdinalIgnoreCase))
+    {
+      return sanitizedHtml;
+    }
+
+    return $$"""
+             <!DOCTYPE html>
+             <html>
+             <head>
+               <meta charset="utf-8">
+               <meta name="viewport" content="width=device-width, initial-scale=1">
+               <style>
+                 body {
+                   margin: 0;
+                   padding: 16px;
+                   font-family: Arial, sans-serif;
+                   line-height: 1.5;
+                   color: #212529;
+                   background: #ffffff;
+                 }
+
+                 img {
+                   max-width: 100%;
+                   height: auto;
+                 }
+
+                 table {
+                   max-width: 100%;
+                 }
+               </style>
+             </head>
+             <body>
+               {{sanitizedHtml}}
+             </body>
+             </html>
+             """;
+  }
+
+  private static string BuildPlainTextDocument(string rawBody)
+  {
+    var encodedBody = HtmlEncoder.Default.Encode(rawBody);
+
+    return $$"""
+             <!DOCTYPE html>
+             <html>
+             <head>
+               <meta charset="utf-8">
+               <meta name="viewport" content="width=device-width, initial-scale=1">
+               <style>
+                 body {
+                   margin: 0;
+                   padding: 16px;
+                   font-family: Menlo, Monaco, Consolas, monospace;
+                   line-height: 1.5;
+                   color: #212529;
+                   background: #ffffff;
+                 }
+
+                 pre {
+                   margin: 0;
+                   white-space: pre-wrap;
+                   word-break: break-word;
+                 }
+               </style>
+             </head>
+             <body>
+               <pre>{{encodedBody}}</pre>
+             </body>
+             </html>
+             """;
+  }
+
+  private static string SanitizeHtml(string html)
+  {
+    var sanitizedHtml = ScriptTagRegex.Replace(html, string.Empty);
+    sanitizedHtml = EventHandlerAttributeRegex.Replace(sanitizedHtml, string.Empty);
+    sanitizedHtml = JavaScriptProtocolAttributeRegex.Replace(sanitizedHtml, string.Empty);
+    sanitizedHtml = BaseTagRegex.Replace(sanitizedHtml, string.Empty);
+
+    return sanitizedHtml;
+  }
+}
