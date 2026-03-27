@@ -25,6 +25,7 @@ artifacts/
 .DS_Store
 AGENTS.md
 *env.json
+*.env
 
 # Build files
 *.log

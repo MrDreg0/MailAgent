@@ -1,4 +1,32 @@
 ﻿services:
+  mailagent-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Database: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Ollama__BaseUrl: http://host.docker.internal:11434/
+      MailImport__Enabled: "true"
+      MailImport__Folders__0: "Releases"
+      
+      MailServer__Provider: ${MAIL_PROVIDER:-imap}
+      MailServer__Username: ${MAIL_USERNAME:-demo}
+      MailServer__Password: ${MAIL_PASSWORD:-demo}
+      
+      MailServer__Imap__Host: ${MAIL_IMAP_HOST:-mail.example.com}
+      MailServer__Imap__Port: ${MAIL_IMAP_PORT:-993}
+      MailServer__Imap__Security: ${MAIL_IMAP_SECURITY:-SslOnConnect}
+      
+      MailServer__Ews__Url: ${MAIL_EWS_URL:-https://mail.example.com/EWS/Exchange.asmx}
+      MailServer__Ews__Domain: ${MAIL_EWS_DOMAIN:-}
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+    restart: always
+
   postgres:
     image: postgres:latest
     environment:
