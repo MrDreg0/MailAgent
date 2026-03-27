@@ -121,6 +121,39 @@ public class MailRepositoryTests
   }
 
   [Test]
+  public async Task GetPage_ReturnsRequestedSlice_InDescendingDateOrder()
+  {
+    // Given.
+    _dbContext.Mails.AddRange(
+      new MailRecord(1, "Releases", "message-1", DateTimeOffset.Parse("2026-03-16T08:00:00Z"), "a@example.com", "first", "raw-1", "md-1", "2026-03-16 08:00:00Z"),
+      new MailRecord(2, "Releases", "message-2", DateTimeOffset.Parse("2026-03-16T10:00:00Z"), "b@example.com", "second", "raw-2", "md-2", "2026-03-16 10:00:00Z"),
+      new MailRecord(3, "Other", "message-3", DateTimeOffset.Parse("2026-03-16T12:00:00Z"), "c@example.com", "third", "raw-3", "md-3", "2026-03-16 12:00:00Z"));
+    await _dbContext.SaveChangesAsync();
+
+    // When.
+    var result = await _sut.GetPage(skip: 1, take: 2);
+
+    // Then.
+    Assert.That(result.Select(x => x.MessageId), Is.EqualTo(["message-2", "message-1"]));
+  }
+
+  [Test]
+  public async Task GetCount_ReturnsTotalStoredMailCount()
+  {
+    // Given.
+    _dbContext.Mails.AddRange(
+      new MailRecord(1, "Releases", "message-1", DateTimeOffset.Parse("2026-03-16T08:00:00Z"), "a@example.com", "first", "raw-1", "md-1", "2026-03-16 08:00:00Z"),
+      new MailRecord(2, "Other", "message-2", DateTimeOffset.Parse("2026-03-16T10:00:00Z"), "b@example.com", "second", "raw-2", "md-2", "2026-03-16 10:00:00Z"));
+    await _dbContext.SaveChangesAsync();
+
+    // When.
+    var result = await _sut.GetCount();
+
+    // Then.
+    Assert.That(result, Is.EqualTo(2));
+  }
+
+  [Test]
   public async Task GetExistingMessageIds_ReturnsOnlyExistingIds_IgnoringCase()
   {
     // Given.

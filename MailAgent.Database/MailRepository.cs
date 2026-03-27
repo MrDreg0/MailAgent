@@ -99,6 +99,39 @@ public sealed class MailRepository(DataContext dbContext) : IMailRepository
       .ToListAsync(cancellationToken);
   }
 
+  public async Task<IReadOnlyList<StoredMail>> GetPage(int skip, int take, CancellationToken cancellationToken = default)
+  {
+    if (take <= 0)
+    {
+      return [];
+    }
+
+    if (skip < 0)
+    {
+      throw new ArgumentOutOfRangeException(nameof(skip), skip, "Skip must be non-negative.");
+    }
+
+    return await dbContext.Mails
+      .OrderByDescending(mail => mail.DateUtc)
+      .ThenByDescending(mail => mail.Id)
+      .Skip(skip)
+      .Take(take)
+      .Select(mail => new StoredMail(
+        mail.Id,
+        mail.Folder,
+        mail.MessageId,
+        mail.DateUtc,
+        mail.From,
+        mail.Subject,
+        mail.RawBody,
+        mail.MarkdownBody,
+        mail.InsertedAt))
+      .ToListAsync(cancellationToken);
+  }
+
+  public Task<int> GetCount(CancellationToken cancellationToken = default)
+    => dbContext.Mails.CountAsync(cancellationToken);
+
   public async Task<IReadOnlySet<string>> GetExistingMessageIds(IReadOnlyCollection<string> messageIds, CancellationToken cancellationToken = default)
   {
     if (messageIds.Count == 0)

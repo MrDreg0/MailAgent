@@ -6,8 +6,12 @@ public interface IMailRepository
   Task SaveNewAsync(IReadOnlyCollection<StoredMail> mails, CancellationToken cancellationToken = default);
 
   Task<IReadOnlyList<StoredMail>> GetLatestFromFolderAsync(string folderName, int takeCount, CancellationToken cancellationToken = default);
-  
+
   Task<IReadOnlyList<StoredMail>> GetByPeriodFromFolder(string folderName, TimeSpan period, CancellationToken cancellationToken = default);
+
+  Task<IReadOnlyList<StoredMail>> GetPage(int skip, int take, CancellationToken cancellationToken = default);
+
+  Task<int> GetCount(CancellationToken cancellationToken = default);
 
   Task<IReadOnlySet<string>> GetExistingMessageIds(IReadOnlyCollection<string> messageIds, CancellationToken cancellationToken = default);
 

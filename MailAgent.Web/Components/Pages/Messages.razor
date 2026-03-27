@@ -1,0 +1,188 @@
+@page "/messages"
+@rendermode InteractiveServer
+@inject MailBrowserService MailBrowserService
+
+<PageTitle>Messages</PageTitle>
+
+<div class="py-4">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+    <div>
+      <h1 class="mb-1">Сообщения</h1>
+      <p class="text-body-secondary mb-0">Только просмотр сохраненных писем без действий над строками.</p>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+      <label class="form-label mb-0" for="page-size">На странице</label>
+      <select id="page-size" class="form-select" style="width: auto;" @bind="pageSize" @bind:after="HandlePageSizeChanged">
+        @foreach (var option in PageSizeOptions)
+        {
+          <option value="@option">@option</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  @if (!string.IsNullOrEmpty(errorMessage))
+  {
+    <div class="alert alert-danger" role="alert">
+      @errorMessage
+    </div>
+  }
+  else if (isLoading)
+  {
+    <div class="d-flex align-items-center gap-3 py-5">
+      <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+      <span>Загрузка сообщений...</span>
+    </div>
+  }
+  else if (mailPage is null || mailPage.TotalCount == 0)
+  {
+    <div class="alert alert-light border" role="status">
+      В базе пока нет сохраненных сообщений.
+    </div>
+  }
+  else
+  {
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Id</th>
+                <th scope="col">Folder</th>
+                <th scope="col">DateUtc</th>
+                <th scope="col">From</th>
+                <th scope="col">Subject</th>
+                <th scope="col">MessageId</th>
+              </tr>
+            </thead>
+            <tbody>
+              @foreach (var mail in mailPage.Items)
+              {
+                <tr>
+                  <td>@mail.Id</td>
+                  <td>@mail.Folder</td>
+                  <td>@mail.DateUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'")</td>
+                  <td class="text-break">@mail.From</td>
+                  <td class="text-break">@mail.Subject</td>
+                  <td class="text-break small">@mail.MessageId</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+      </div>
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mt-3">
+      <div class="text-body-secondary">
+        Показано @(StartItem)-@(EndItem) из @mailPage.TotalCount
+      </div>
+
+      <nav aria-label="Messages pages">
+        <ul class="pagination mb-0">
+          <li class="page-item @(currentPage == 1 ? "disabled" : null)">
+            <button type="button" class="page-link" @onclick="() => ChangePage(currentPage - 1)" disabled="@(currentPage == 1)">Назад</button>
+          </li>
+          @foreach (var pageNumber in VisiblePages)
+          {
+            <li class="page-item @(pageNumber == currentPage ? "active" : null)">
+              <button type="button" class="page-link" @onclick="() => ChangePage(pageNumber)">@pageNumber</button>
+            </li>
+          }
+          <li class="page-item @(currentPage == TotalPages ? "disabled" : null)">
+            <button type="button" class="page-link" @onclick="() => ChangePage(currentPage + 1)" disabled="@(currentPage == TotalPages)">Вперед</button>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  }
+</div>
+
+@code {
+  private static readonly int[] PageSizeOptions = [10, 25, 100];
+
+  private MailPageResult? mailPage;
+  private bool isLoading = true;
+  private string? errorMessage;
+  private int currentPage = 1;
+  private int pageSize = 10;
+
+  private int TotalPages => mailPage is null || mailPage.TotalCount == 0
+    ? 1
+    : (int)Math.Ceiling(mailPage.TotalCount / (double)mailPage.PageSize);
+
+  private int StartItem => mailPage is null || mailPage.TotalCount == 0
+    ? 0
+    : ((mailPage.PageNumber - 1) * mailPage.PageSize) + 1;
+
+  private int EndItem => mailPage is null
+    ? 0
+    : Math.Min(mailPage.PageNumber * mailPage.PageSize, mailPage.TotalCount);
+
+  private IEnumerable<int> VisiblePages
+  {
+    get
+    {
+      if (mailPage is null)
+      {
+        yield break;
+      }
+
+      var startPage = Math.Max(1, currentPage - 2);
+      var endPage = Math.Min(TotalPages, startPage + 4);
+      startPage = Math.Max(1, endPage - 4);
+
+      for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+      {
+        yield return pageNumber;
+      }
+    }
+  }
+
+  protected override Task OnInitializedAsync()
+    => LoadPage();
+
+  private Task HandlePageSizeChanged()
+  {
+    currentPage = 1;
+    return LoadPage();
+  }
+
+  private Task ChangePage(int nextPage)
+  {
+    if (nextPage < 1 || nextPage > TotalPages || nextPage == currentPage)
+    {
+      return Task.CompletedTask;
+    }
+
+    currentPage = nextPage;
+    return LoadPage();
+  }
+
+  private async Task LoadPage()
+  {
+    isLoading = true;
+    errorMessage = null;
+
+    try
+    {
+      mailPage = await MailBrowserService.GetPage(currentPage, pageSize);
+
+      if (mailPage.TotalCount > 0 && currentPage > TotalPages)
+      {
+        currentPage = TotalPages;
+        mailPage = await MailBrowserService.GetPage(currentPage, pageSize);
+      }
+    }
+    catch (Exception exception)
+    {
+      errorMessage = $"Не удалось загрузить сообщения: {exception.Message}";
+    }
+    finally
+    {
+      isLoading = false;
+    }
+  }
+}
