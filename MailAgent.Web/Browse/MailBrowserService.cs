@@ -1,6 +1,5 @@
 using MailAgent.Application.Contracts.Mail;
-
-namespace MailAgent.Application.Browse;
+namespace MailAgent.Web.Browse;
 
 public sealed class MailBrowserService(IMailRepository mailRepository)
 {

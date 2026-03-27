@@ -1,5 +1,4 @@
 using MailAgent.Application.Contracts.Ollama;
-using MailAgent.Application.Browse;
 using MailAgent.Application.Digest;
 using MailAgent.Application.Import;
 using MailAgent.Application.Ollama;
@@ -12,7 +11,6 @@ public static class DependencyInjection
   public static IServiceCollection AddApplication(this IServiceCollection services, OllamaSettings ollamaSettings)
   {
     services.AddSingleton<EmailBodyConverter>()
-      .AddScoped<MailBrowserService>()
       .AddScoped<MailImportService>()
       .AddScoped<ReleaseDigestService>();
     

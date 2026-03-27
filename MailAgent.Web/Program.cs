@@ -1,5 +1,5 @@
-using MailAgent.Application.Browse;
 using MailAgent.Database.PostgreSql;
+using MailAgent.Web.Browse;
 using MailAgent.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);

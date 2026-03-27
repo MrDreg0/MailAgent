@@ -1,6 +1,5 @@
 using MailAgent.Application.Contracts.Mail.Models;
-
-namespace MailAgent.Application.Browse;
+namespace MailAgent.Web.Browse;
 
 public sealed record MailPageResult(
   IReadOnlyList<StoredMail> Items,
