@@ -39,7 +39,8 @@
             PageSizeSelectorItems="@PageSizeOptions"
             PaginationItemsTextFormat="{0}-{1} из {2}"
             ItemsPerPageText="На странице"
-            Responsive="true">
+            Responsive="true"
+            AllowDetailView="true">
         <GridColumns>
           <GridColumn TItem="StoredMail" HeaderText="Id">
             @context.Id
@@ -60,6 +61,26 @@
             <div class="text-break small">@context.MessageId</div>
           </GridColumn>
         </GridColumns>
+        
+        <GridDetailView TItem="StoredMail">
+          <Card class="mt-4">
+            <CardHeader>
+              <div class="d-flex flex-column gap-1">
+                <div class="fw-semibold text-break">@context.Subject</div>
+                <div class="small text-body-secondary text-break">
+                  <span>От: @context.From</span>
+                  <span class="mx-2">•</span>
+                  <span>Папка: @context.Folder</span>
+                  <span class="mx-2">•</span>
+                  <span>@context.DateUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'")</span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardBody>
+              <pre class="mb-0 p-3 bg-body-tertiary border rounded small" style="white-space: pre-wrap; word-break: break-word;">@GetDisplayedRawBody(context.RawBody)</pre>
+            </CardBody>
+          </Card>
+        </GridDetailView>
       </Grid>
     </CardBody>
   </Card>
@@ -70,6 +91,7 @@
 
   private bool _isLoading = true;
   private string? _errorMessage;
+  private StoredMail? _selectedMail;
 
   private async Task<GridDataProviderResult<StoredMail>> MailsDataProvider(GridDataProviderRequest<StoredMail> request)
   {
@@ -77,6 +99,7 @@
     {
       _errorMessage = null;
       var mailPage = await MailBrowserService.GetPage(request.PageNumber, request.PageSize);
+      _selectedMail = KeepSelectedMailIfPresent(mailPage.Items, _selectedMail);
 
       return new GridDataProviderResult<StoredMail>
       {
@@ -99,5 +122,22 @@
       _isLoading = false;
       await InvokeAsync(StateHasChanged);
     }
+  }
+
+  private static StoredMail? KeepSelectedMailIfPresent(IReadOnlyList<StoredMail> items, StoredMail? selectedMail)
+  {
+    if (selectedMail is null)
+    {
+      return null;
+    }
+
+    return items.FirstOrDefault(mail => mail.Id == selectedMail.Id);
+  }
+
+  private static string GetDisplayedRawBody(string rawBody)
+  {
+    return string.IsNullOrWhiteSpace(rawBody)
+      ? "У письма нет сохраненного raw body."
+      : rawBody;
   }
 }
