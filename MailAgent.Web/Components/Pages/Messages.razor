@@ -2,12 +2,12 @@
 @using MailAgent.Web.Browse
 @inject MailBrowserService MailBrowserService
 
-<PageTitle>Messages</PageTitle>
+<PageTitle>Mail Archive</PageTitle>
 
 <div class="py-4">
   <div class="mb-4">
-    <h1 class="mb-1">Сообщения</h1>
-    <p class="text-body-secondary mb-0">Просмотр сохраненных писем через BlazorBootstrap Grid.</p>
+    <h1 class="mb-1">Mail Archive</h1>
+    <p class="text-body-secondary mb-0">Browse stored messages and inspect their original content.</p>
   </div>
 
   @if (!string.IsNullOrEmpty(_errorMessage))
@@ -22,7 +22,7 @@
   {
     <div class="d-flex align-items-center gap-3 py-3">
       <Spinner Color="SpinnerColor.Primary" />
-      <span>Загрузка сообщений...</span>
+      <span>Loading messages...</span>
     </div>
   }
 
@@ -33,12 +33,12 @@
             DataProvider="MailsDataProvider"
             AllowPaging="true"
             AutoHidePaging="true"
-            EmptyText="В базе пока нет сохраненных сообщений."
+            EmptyText="No stored messages found."
             PageSize="10"
             PageSizeSelectorVisible="true"
             PageSizeSelectorItems="@PageSizeOptions"
-            PaginationItemsTextFormat="{0}-{1} из {2}"
-            ItemsPerPageText="На странице"
+            PaginationItemsTextFormat="{0}-{1} of {2}"
+            ItemsPerPageText="Per page"
             Responsive="true"
             AllowDetailView="true">
         <GridColumns>
@@ -68,9 +68,9 @@
               <div class="d-flex flex-column gap-1">
                 <div class="fw-semibold text-break">@context.Subject</div>
                 <div class="small text-body-secondary text-break">
-                  <span>От: @context.From</span>
+                  <span>From: @context.From</span>
                   <span class="mx-2">•</span>
-                  <span>Папка: @context.Folder</span>
+                  <span>Folder: @context.Folder</span>
                   <span class="mx-2">•</span>
                   <span>@context.DateUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'")</span>
                 </div>
@@ -109,7 +109,7 @@
     }
     catch (Exception exception)
     {
-      _errorMessage = $"Не удалось загрузить сообщения: {exception.Message}";
+      _errorMessage = $"Failed to load messages: {exception.Message}";
 
       return new GridDataProviderResult<StoredMail>
       {

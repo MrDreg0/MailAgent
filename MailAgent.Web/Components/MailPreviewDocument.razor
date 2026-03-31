@@ -50,7 +50,7 @@ else
   private static string GetDisplayedRawBody(string rawBody)
   {
     return string.IsNullOrWhiteSpace(rawBody)
-      ? "У письма нет сохраненного raw body."
+      ? "No stored raw body is available for this message."
       : rawBody;
   }
 
@@ -58,7 +58,7 @@ else
   {
     if (string.IsNullOrWhiteSpace(rawBody))
     {
-      return BuildPlainTextDocument("У письма нет сохраненного raw body.");
+      return BuildPlainTextDocument("No stored raw body is available for this message.");
     }
 
     if (!LooksLikeHtml(rawBody))
