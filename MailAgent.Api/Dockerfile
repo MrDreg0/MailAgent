@@ -14,7 +14,7 @@ COPY MailAgent.Application/ MailAgent.Application/
 COPY MailAgent.Database/ MailAgent.Database/
 COPY MailAgent.Database.PostgreSql/ MailAgent.Database.PostgreSql/
 COPY MailAgent.Mail/ MailAgent.Mail/
-    
+
 RUN dotnet publish MailAgent.Api/MailAgent.Api.csproj -c Release -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
