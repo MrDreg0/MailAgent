@@ -5,6 +5,7 @@ using MailAgent.Web.Components;
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("Database")
   ?? throw new InvalidOperationException("Database connection string is missing");
+var useHttpsRedirection = builder.Configuration.GetValue("UseHttpsRedirection", true);
 
 builder.Services.AddBlazorBootstrap();
 
@@ -24,7 +25,12 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
+
+if (useHttpsRedirection)
+{
+  app.UseHttpsRedirection();
+}
+
 app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
