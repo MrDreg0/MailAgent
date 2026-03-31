@@ -7,12 +7,18 @@ public static class DependencyInjection
 {
   public static IServiceCollection AddPostgreSqlDataContext(
     this IServiceCollection services,
-    string connectionString)
+    string connectionString,
+    bool enableSensitiveDataLogging = false)
   {
     services.AddDbContext<PostgreSqlDataContext>(options =>
-      options
-        .EnableSensitiveDataLogging()
-        .UseNpgsql(connectionString));
+    {
+      options.UseNpgsql(connectionString);
+
+      if (enableSensitiveDataLogging)
+      {
+        options.EnableSensitiveDataLogging();
+      }
+    });
     services.AddScoped<DataContext>(serviceProvider => serviceProvider.GetRequiredService<PostgreSqlDataContext>());
     services.AddScoped<IMailRepository, MailRepository>();
 
