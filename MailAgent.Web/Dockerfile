@@ -18,6 +18,10 @@ RUN dotnet publish MailAgent.Web/MailAgent.Web.csproj -c Release -o /app/publish
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends libgssapi-krb5-2 gss-ntlmssp \
+  && rm -rf /var/lib/apt/lists/*
+
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
