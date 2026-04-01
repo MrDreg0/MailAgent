@@ -1,11 +1,21 @@
 using MailAgent.Database.PostgreSql;
 using MailAgent.Web.Browse;
 using MailAgent.Web.Components;
+using Microsoft.Extensions.Logging.Console;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("Database")
   ?? throw new InvalidOperationException("Database connection string is missing");
 var useHttpsRedirection = builder.Configuration.GetValue("UseHttpsRedirection", true);
+
+builder.Logging.AddSimpleConsole(options =>
+{
+  options.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff zzz ";
+  options.UseUtcTimestamp = true;
+  options.IncludeScopes = false;
+  options.SingleLine = false;
+  options.ColorBehavior = LoggerColorBehavior.Disabled;
+});
 
 builder.Services.AddBlazorBootstrap();
 
