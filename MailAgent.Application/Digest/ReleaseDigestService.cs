@@ -2,13 +2,18 @@ using System.Text;
 using MailAgent.Application.Contracts.Llm;
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Llm;
+using Microsoft.Extensions.Logging;
 namespace MailAgent.Application.Digest;
 
 public sealed class ReleaseDigestService(
   IMailRepository mailRepository,
   ILlmClient llmClient,
-  LlmSettings llmSettings)
+  LlmSettings llmSettings,
+  ILogger<ReleaseDigestService> logger)
 {
+  private const int ClassifierBatchSize = 50;
+  private const int DigestBatchSize = 5;
+
   public async Task<ReleaseDigestResult> BuildInboxDigestAsync(
     string folderName,
     TimeSpan period,
@@ -24,22 +29,100 @@ public sealed class ReleaseDigestService(
       let bodyPreview = Truncate(message.MarkdownBody, 1500) 
       select new DigestEmail(emailId++, message.Subject, message.From, message.DateUtc.UtcDateTime, bodyPreview));
 
-    var request = new LlmGenerateRequest(llmSettings.FastModel, BuildClassifierPrompt(emails));
-    
-    var classifierResult = await llmClient.Generate(request, cancellationToken);
-
-    var selected = ParseSelectedIdsOrFallback(classifierResult.Response, emails);
-
-    var digestResult = await llmClient.Generate(
-      new LlmGenerateRequest(
-        llmSettings.MainModel,
-        BuildDigestPrompt(selected)),
-      cancellationToken);
+    var selected = await SelectReleaseEmails(emails, cancellationToken);
+    var digestText = await BuildDigest(selected, cancellationToken);
 
     return new ReleaseDigestResult(
       TotalFetched: emails.Count,
       Selected: selected.Count,
-      Digest: digestResult.Response.Trim());
+      Digest: digestText.Trim());
+  }
+
+  private async Task<string> BuildDigest(
+    IReadOnlyList<DigestEmail> selected,
+    CancellationToken cancellationToken)
+  {
+    if (selected.Count <= DigestBatchSize)
+    {
+      return await GenerateDigest(BuildDigestPrompt(selected), selected.Count, cancellationToken);
+    }
+
+    var partialDigests = new List<string>();
+    var batchIndex = 0;
+
+    foreach (var batch in selected.Chunk(DigestBatchSize))
+    {
+      batchIndex++;
+
+      logger.LogInformation(
+        "Running partial release digest generation. Batch: {BatchIndex}. Selected emails: {SelectedCount}.",
+        batchIndex,
+        batch.Length);
+
+      partialDigests.Add(await GenerateDigest(BuildDigestPrompt(batch), batch.Length, cancellationToken));
+    }
+
+    var mergePrompt = BuildDigestMergePrompt(partialDigests);
+
+    logger.LogInformation(
+      "Running final release digest merge with LLM model {Model}. Partial digests: {PartialDigestCount}. Prompt length: {PromptLength}.",
+      llmSettings.MainModel,
+      partialDigests.Count,
+      mergePrompt.Length);
+
+    var digestResult = await llmClient.Generate(
+      new LlmGenerateRequest(llmSettings.MainModel, mergePrompt),
+      cancellationToken);
+
+    return digestResult.Response;
+  }
+
+  private async Task<string> GenerateDigest(
+    string digestPrompt,
+    int selectedCount,
+    CancellationToken cancellationToken)
+  {
+    logger.LogInformation(
+      "Running release digest generation with LLM model {Model}. Selected emails: {SelectedCount}. Prompt length: {PromptLength}.",
+      llmSettings.MainModel,
+      selectedCount,
+      digestPrompt.Length);
+
+    var digestResult = await llmClient.Generate(
+      new LlmGenerateRequest(
+        llmSettings.MainModel,
+        digestPrompt),
+      cancellationToken);
+
+    return digestResult.Response;
+  }
+
+  private async Task<IReadOnlyList<DigestEmail>> SelectReleaseEmails(
+    IReadOnlyList<DigestEmail> emails,
+    CancellationToken cancellationToken)
+  {
+    var selected = new List<DigestEmail>();
+    var batchIndex = 0;
+
+    foreach (var batch in emails.Chunk(ClassifierBatchSize))
+    {
+      batchIndex++;
+      var classifierPrompt = BuildClassifierPrompt(batch);
+
+      logger.LogInformation(
+        "Running release mail classification with LLM model {Model}. Batch: {BatchIndex}. Emails: {EmailCount}. Prompt length: {PromptLength}.",
+        llmSettings.FastModel,
+        batchIndex,
+        batch.Length,
+        classifierPrompt.Length);
+
+      var request = new LlmGenerateRequest(llmSettings.FastModel, classifierPrompt);
+      var classifierResult = await llmClient.Generate(request, cancellationToken);
+
+      selected.AddRange(ParseSelectedIdsOrFallback(classifierResult.Response, batch));
+    }
+
+    return selected;
   }
 
   private static IReadOnlyList<DigestEmail> ParseSelectedIdsOrFallback(string classifierResponseText, IReadOnlyList<DigestEmail> emails)
@@ -92,6 +175,26 @@ public sealed class ReleaseDigestService(
       {
         stringBuilder.AppendLine($"Body preview: {email.BodyPreview}");
       }
+    }
+
+    return stringBuilder.ToString();
+  }
+
+  private static string BuildDigestMergePrompt(IReadOnlyList<string> partialDigests)
+  {
+    var stringBuilder = new StringBuilder();
+    stringBuilder.AppendLine("Объедини частичные сводки релизных писем в одну краткую итоговую сводку.");
+    stringBuilder.AppendLine("Убери дубли, сохрани формат:");
+    stringBuilder.AppendLine("- Название продукта/сервиса — версия");
+    stringBuilder.AppendLine("  - 1–2 пункта что важно (если не ясно — так и скажи)");
+    stringBuilder.AppendLine("  - source: from + дата");
+    stringBuilder.AppendLine();
+    stringBuilder.AppendLine("Частичные сводки:");
+
+    foreach (var partialDigest in partialDigests)
+    {
+      stringBuilder.AppendLine("---");
+      stringBuilder.AppendLine(partialDigest);
     }
 
     return stringBuilder.ToString();

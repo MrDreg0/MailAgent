@@ -64,6 +64,22 @@ public class SettingsTests
   }
 
   [Test]
+  public void GetLlmSettings_ReturnsLmStudioDefaultBaseUrl_WhenProviderIsLmStudioAndBaseUrlIsMissing()
+  {
+    // Given.
+    var configuration = BuildConfiguration(new Dictionary<string, string?>
+    {
+      ["Llm:Provider"] = "lmstudio",
+    });
+
+    // When.
+    var result = Settings.GetLlmSettings(configuration);
+
+    // Then.
+    Assert.That(result.BaseUrl, Is.EqualTo("http://localhost:1234/v1/"));
+  }
+
+  [Test]
   public void CreateImapSettings_ReturnsParsedSettings_WhenConfigurationIsValid()
   {
     // Given.

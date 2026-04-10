@@ -107,13 +107,28 @@ public class DependencyInjectionTests
   }
 
   [Test]
+  public void AddApplication_RegistersLlmClient_WhenProviderIsLmStudio()
+  {
+    // Given.
+    var services = new ServiceCollection();
+
+    // When.
+    services.AddApplication(CreateLlmSettings(provider: "lmstudio"));
+
+    using var serviceProvider = services.BuildServiceProvider();
+
+    // Then.
+    Assert.That(serviceProvider.GetService<ILlmClient>(), Is.Not.Null);
+  }
+
+  [Test]
   public void AddApplication_Throws_WhenLlmProviderIsUnsupported()
   {
     // Given.
     var services = new ServiceCollection();
 
     // When.
-    var act = () => services.AddApplication(CreateLlmSettings(provider: "lmstudio"));
+    var act = () => services.AddApplication(CreateLlmSettings(provider: "openai"));
 
     // Then.
     Assert.That(act, Throws.TypeOf<InvalidOperationException>()

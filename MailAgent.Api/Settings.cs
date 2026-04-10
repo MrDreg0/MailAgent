@@ -41,17 +41,18 @@ internal static class Settings
   internal static LlmSettings GetLlmSettings(IConfiguration configuration)
   {
     var llmSection = configuration.GetSection("Llm");
+    var provider = string.IsNullOrWhiteSpace(llmSection["Provider"])
+      ? "ollama"
+      : llmSection["Provider"]!;
     var timeoutMinutes = int.TryParse(llmSection["TimeoutMinutes"], out var parsedTimeoutMinutes)
       ? parsedTimeoutMinutes
       : 5;
 
     return new LlmSettings
     {
-      Provider = string.IsNullOrWhiteSpace(llmSection["Provider"])
-        ? "ollama"
-        : llmSection["Provider"]!,
+      Provider = provider,
       BaseUrl = string.IsNullOrWhiteSpace(llmSection["BaseUrl"])
-        ? "http://localhost:11434/"
+        ? GetDefaultLlmBaseUrl(provider)
         : llmSection["BaseUrl"]!,
       Timeout = TimeSpan.FromMinutes(timeoutMinutes),
       FastModel = string.IsNullOrWhiteSpace(llmSection["FastModel"])
@@ -60,6 +61,15 @@ internal static class Settings
       MainModel = string.IsNullOrWhiteSpace(llmSection["MainModel"])
         ? "qwen2.5:7b-instruct"
         : llmSection["MainModel"]!,
+    };
+  }
+
+  private static string GetDefaultLlmBaseUrl(string provider)
+  {
+    return provider.Trim().ToLowerInvariant() switch
+    {
+      "lmstudio" => "http://localhost:1234/v1/",
+      _ => "http://localhost:11434/",
     };
   }
 

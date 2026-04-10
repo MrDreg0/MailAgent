@@ -4,6 +4,7 @@ using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Contracts.Mail.Models;
 using MailAgent.Application.Digest;
 using MailAgent.Application.Llm;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 namespace MailAgent.Application.Tests;
@@ -22,7 +23,7 @@ public class ReleaseDigestServiceTests
     _fixture = new Fixture();
     _mailRepository = Substitute.For<IMailRepository>();
     _llmClient = Substitute.For<ILlmClient>();
-    _sut = new ReleaseDigestService(_mailRepository, _llmClient, CreateLlmSettings());
+    _sut = new ReleaseDigestService(_mailRepository, _llmClient, CreateLlmSettings(), NullLogger<ReleaseDigestService>.Instance);
   }
 
   [Test]
@@ -118,6 +119,89 @@ public class ReleaseDigestServiceTests
       Assert.That(requests[1].Prompt, Does.Contain("Subject: Вышла версия 1.2.3"));
       Assert.That(requests[1].Prompt, Does.Contain("Subject: Service release announcement"));
       Assert.That(requests[1].Prompt, Does.Not.Contain("Subject: General update"));
+    });
+  }
+
+  [Test]
+  public async Task BuildInboxDigestAsync_ClassifiesEmailsInBatches_WhenEmailCountExceedsClassifierBatchSize()
+  {
+    // Given.
+    var folderName = _fixture.Create<string>();
+    var period = _fixture.Create<TimeSpan>();
+    var storedMails = Enumerable.Range(1, 51)
+      .Select(index => CreateStoredMail(subject: $"Message {index}", markdownBody: $"body {index}"))
+      .ToArray();
+
+    _mailRepository
+      .GetByPeriodFromFolder(folderName, period, Arg.Any<CancellationToken>())
+      .Returns(storedMails);
+
+    var requests = new List<LlmGenerateRequest>();
+
+    _llmClient
+      .Generate(Arg.Do<LlmGenerateRequest>(request => requests.Add(request)), Arg.Any<CancellationToken>())
+      .Returns(
+        new LlmGenerateResponse("1"),
+        new LlmGenerateResponse("51"),
+        new LlmGenerateResponse("digest"));
+
+    // When.
+    var result = await _sut.BuildInboxDigestAsync(folderName, period);
+
+    // Then.
+    Assert.That(result.Selected, Is.EqualTo(2));
+    Assert.That(requests, Has.Count.EqualTo(3));
+
+    Assert.Multiple(() =>
+    {
+      Assert.That(requests[0].Prompt, Does.Contain("1."));
+      Assert.That(requests[0].Prompt, Does.Contain("50."));
+      Assert.That(requests[0].Prompt, Does.Not.Contain("51."));
+      Assert.That(requests[1].Prompt, Does.Contain("51."));
+      Assert.That(requests[2].Prompt, Does.Contain("Subject: Message 1"));
+      Assert.That(requests[2].Prompt, Does.Contain("Subject: Message 51"));
+    });
+  }
+
+  [Test]
+  public async Task BuildInboxDigestAsync_GeneratesDigestInBatches_WhenSelectedEmailCountExceedsDigestBatchSize()
+  {
+    // Given.
+    var folderName = _fixture.Create<string>();
+    var period = _fixture.Create<TimeSpan>();
+    var storedMails = Enumerable.Range(1, 6)
+      .Select(index => CreateStoredMail(subject: $"Release {index}", markdownBody: $"body {index}"))
+      .ToArray();
+
+    _mailRepository
+      .GetByPeriodFromFolder(folderName, period, Arg.Any<CancellationToken>())
+      .Returns(storedMails);
+
+    var requests = new List<LlmGenerateRequest>();
+
+    _llmClient
+      .Generate(Arg.Do<LlmGenerateRequest>(request => requests.Add(request)), Arg.Any<CancellationToken>())
+      .Returns(
+        new LlmGenerateResponse("1,2,3,4,5,6"),
+        new LlmGenerateResponse("partial digest 1"),
+        new LlmGenerateResponse("partial digest 2"),
+        new LlmGenerateResponse("final merged digest"));
+
+    // When.
+    var result = await _sut.BuildInboxDigestAsync(folderName, period);
+
+    // Then.
+    Assert.That(result.Digest, Is.EqualTo("final merged digest"));
+    Assert.That(requests, Has.Count.EqualTo(4));
+
+    Assert.Multiple(() =>
+    {
+      Assert.That(requests[1].Prompt, Does.Contain("Subject: Release 1"));
+      Assert.That(requests[1].Prompt, Does.Contain("Subject: Release 5"));
+      Assert.That(requests[1].Prompt, Does.Not.Contain("Subject: Release 6"));
+      Assert.That(requests[2].Prompt, Does.Contain("Subject: Release 6"));
+      Assert.That(requests[3].Prompt, Does.Contain("partial digest 1"));
+      Assert.That(requests[3].Prompt, Does.Contain("partial digest 2"));
     });
   }
 
