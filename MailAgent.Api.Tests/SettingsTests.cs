@@ -17,43 +17,49 @@ public class SettingsTests
   }
 
   [Test]
-  public void GetOllamaSettings_ReturnsConfiguredValues_WhenSectionExists()
+  public void GetLlmSettings_ReturnsConfiguredValues_WhenSectionExists()
   {
     // Given.
     var configuration = BuildConfiguration(new Dictionary<string, string?>
     {
-      ["Ollama:BaseUrl"] = "http://ollama.local:11434/",
-      ["Ollama:TimeoutMinutes"] = "12",
+      ["Llm:Provider"] = "lmstudio",
+      ["Llm:BaseUrl"] = "http://localhost:1234/v1/",
+      ["Llm:TimeoutMinutes"] = "12",
+      ["Llm:FastModel"] = "fast-local-model",
+      ["Llm:MainModel"] = "main-local-model",
     });
 
     // When.
-    var result = Settings.GetOllamaSettings(configuration);
+    var result = Settings.GetLlmSettings(configuration);
 
     // Then.
     Assert.Multiple(() =>
     {
-      Assert.That(result.BaseUrl, Is.EqualTo("http://ollama.local:11434/"));
+      Assert.That(result.Provider, Is.EqualTo("lmstudio"));
+      Assert.That(result.BaseUrl, Is.EqualTo("http://localhost:1234/v1/"));
       Assert.That(result.Timeout, Is.EqualTo(TimeSpan.FromMinutes(12)));
+      Assert.That(result.FastModel, Is.EqualTo("fast-local-model"));
+      Assert.That(result.MainModel, Is.EqualTo("main-local-model"));
     });
   }
 
   [Test]
-  public void GetOllamaSettings_ReturnsDefaults_WhenSectionIsMissingOrInvalid()
+  public void GetLlmSettings_ReturnsDefaults_WhenSectionIsMissing()
   {
     // Given.
-    var configuration = BuildConfiguration(new Dictionary<string, string?>
-    {
-      ["Ollama:TimeoutMinutes"] = "not-a-number",
-    });
+    var configuration = BuildConfiguration(new Dictionary<string, string?>());
 
     // When.
-    var result = Settings.GetOllamaSettings(configuration);
+    var result = Settings.GetLlmSettings(configuration);
 
     // Then.
     Assert.Multiple(() =>
     {
+      Assert.That(result.Provider, Is.EqualTo("ollama"));
       Assert.That(result.BaseUrl, Is.EqualTo("http://localhost:11434/"));
       Assert.That(result.Timeout, Is.EqualTo(TimeSpan.FromMinutes(5)));
+      Assert.That(result.FastModel, Is.EqualTo("llama3.2:3b"));
+      Assert.That(result.MainModel, Is.EqualTo("qwen2.5:7b-instruct"));
     });
   }
 

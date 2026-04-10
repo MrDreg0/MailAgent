@@ -2,12 +2,12 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using MailAgent.Api.Endpoints;
+using MailAgent.Application.Contracts.Llm;
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Contracts.Mail.Models;
-using MailAgent.Application.Contracts.Ollama;
 using MailAgent.Application.Digest;
 using MailAgent.Application.Import;
-using MailAgent.Application.Ollama;
+using MailAgent.Application.Llm;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,14 +20,14 @@ public class MailEndpointsTests
 {
   private IMailClient _mailClient = null!;
   private IMailRepository _mailRepository = null!;
-  private IOllamaClient _ollamaClient = null!;
+  private ILlmClient _llmClient = null!;
 
   [SetUp]
   public void SetUp()
   {
     _mailClient = Substitute.For<IMailClient>();
     _mailRepository = Substitute.For<IMailRepository>();
-    _ollamaClient = Substitute.For<IOllamaClient>();
+    _llmClient = Substitute.For<ILlmClient>();
   }
 
   [Test]
@@ -114,10 +114,10 @@ public class MailEndpointsTests
         new StoredMail(0, "Releases", "message-id", DateTimeOffset.Parse("2026-03-16T10:00:00Z"), "from@example.com", "Service release", "raw", "release body", "2026-03-16 10:00:00Z"),
       ]);
 
-    _ollamaClient.Generate(Arg.Any<OllamaGenerateRequest>(), Arg.Any<CancellationToken>())
+    _llmClient.Generate(Arg.Any<LlmGenerateRequest>(), Arg.Any<CancellationToken>())
       .Returns(
-        new OllamaGenerateResponse("1"),
-        new OllamaGenerateResponse(" digest text "));
+        new LlmGenerateResponse("1"),
+        new LlmGenerateResponse(" digest text "));
 
     using var client = await CreateClientAsync();
 
@@ -143,7 +143,15 @@ public class MailEndpointsTests
 
     builder.Services.AddSingleton(_mailClient);
     builder.Services.AddSingleton(_mailRepository);
-    builder.Services.AddSingleton(_ollamaClient);
+    builder.Services.AddSingleton(_llmClient);
+    builder.Services.AddSingleton(new LlmSettings
+    {
+      Provider = "ollama",
+      BaseUrl = "http://localhost:11434/",
+      Timeout = TimeSpan.FromMinutes(5),
+      FastModel = "llama3.2:3b",
+      MainModel = "qwen2.5:7b-instruct",
+    });
     builder.Services.AddSingleton<EmailBodyConverter>();
     builder.Services.AddScoped<MailImportService>();
     builder.Services.AddScoped<ReleaseDigestService>();

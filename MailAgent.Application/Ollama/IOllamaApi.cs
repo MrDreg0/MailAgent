@@ -1,8 +1,7 @@
-using MailAgent.Application.Ollama;
 using Refit;
-namespace MailAgent.Application.Contracts.Ollama;
+namespace MailAgent.Application.Ollama;
 
-public interface IOllamaClient
+internal interface IOllamaApi
 {
   [Post("/api/generate")]
   Task<OllamaGenerateResponse> Generate(OllamaGenerateRequest request, CancellationToken cancellationToken);

@@ -7,7 +7,12 @@
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Database: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
-      Ollama__BaseUrl: http://host.docker.internal:11434/
+      
+      Llm__Provider: ollama
+      Llm__BaseUrl: http://host.docker.internal:11434/
+      Llm__FastModel: llama3.2:3b
+      Llm__MainModel: qwen2.5:7b-instruct
+      
       MailImport__Enabled: "true"
       MailImport__Folders__0: "Releases"
       

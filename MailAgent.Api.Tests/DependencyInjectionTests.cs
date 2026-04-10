@@ -1,6 +1,9 @@
 using AutoFixture;
 using MailAgent.Api.BackgroundServices;
+using MailAgent.Application;
+using MailAgent.Application.Contracts.Llm;
 using MailAgent.Application.Contracts.Mail;
+using MailAgent.Application.Llm;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -88,10 +91,51 @@ public class DependencyInjectionTests
       Is.True);
   }
 
+  [Test]
+  public void AddApplication_RegistersLlmClient_WhenProviderIsOllama()
+  {
+    // Given.
+    var services = new ServiceCollection();
+
+    // When.
+    services.AddApplication(CreateLlmSettings(provider: "ollama"));
+
+    using var serviceProvider = services.BuildServiceProvider();
+
+    // Then.
+    Assert.That(serviceProvider.GetService<ILlmClient>(), Is.Not.Null);
+  }
+
+  [Test]
+  public void AddApplication_Throws_WhenLlmProviderIsUnsupported()
+  {
+    // Given.
+    var services = new ServiceCollection();
+
+    // When.
+    var act = () => services.AddApplication(CreateLlmSettings(provider: "lmstudio"));
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<InvalidOperationException>()
+      .With.Message.Contains("Unsupported LLM provider"));
+  }
+
   private static IConfiguration BuildConfiguration(IReadOnlyDictionary<string, string?> values)
   {
     return new ConfigurationBuilder()
       .AddInMemoryCollection(values)
       .Build();
+  }
+
+  private static LlmSettings CreateLlmSettings(string provider)
+  {
+    return new LlmSettings
+    {
+      Provider = provider,
+      BaseUrl = "http://localhost:11434/",
+      Timeout = TimeSpan.FromMinutes(5),
+      FastModel = "llama3.2:3b",
+      MainModel = "qwen2.5:7b-instruct",
+    };
   }
 }

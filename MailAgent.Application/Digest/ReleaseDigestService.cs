@@ -1,12 +1,13 @@
 using System.Text;
+using MailAgent.Application.Contracts.Llm;
 using MailAgent.Application.Contracts.Mail;
-using MailAgent.Application.Contracts.Ollama;
-using MailAgent.Application.Ollama;
+using MailAgent.Application.Llm;
 namespace MailAgent.Application.Digest;
 
 public sealed class ReleaseDigestService(
   IMailRepository mailRepository,
-  IOllamaClient ollamaClient)
+  ILlmClient llmClient,
+  LlmSettings llmSettings)
 {
   public async Task<ReleaseDigestResult> BuildInboxDigestAsync(
     string folderName,
@@ -23,18 +24,16 @@ public sealed class ReleaseDigestService(
       let bodyPreview = Truncate(message.MarkdownBody, 1500) 
       select new DigestEmail(emailId++, message.Subject, message.From, message.DateUtc.UtcDateTime, bodyPreview));
 
-    var request = new OllamaGenerateRequest("llama3.2:3b", BuildClassifierPrompt(emails), false, 0);
+    var request = new LlmGenerateRequest(llmSettings.FastModel, BuildClassifierPrompt(emails));
     
-    var classifierResult = await ollamaClient.Generate(request, cancellationToken);
+    var classifierResult = await llmClient.Generate(request, cancellationToken);
 
     var selected = ParseSelectedIdsOrFallback(classifierResult.Response, emails);
 
-    var digestResult = await ollamaClient.Generate(
-      new OllamaGenerateRequest(
-        "qwen2.5:7b-instruct",
-        BuildDigestPrompt(selected),
-        false,
-        0),
+    var digestResult = await llmClient.Generate(
+      new LlmGenerateRequest(
+        llmSettings.MainModel,
+        BuildDigestPrompt(selected)),
       cancellationToken);
 
     return new ReleaseDigestResult(

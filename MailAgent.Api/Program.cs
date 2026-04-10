@@ -19,7 +19,7 @@ webApplicationBuilder.Logging.AddSimpleConsole(options =>
 
 webApplicationBuilder.Services
   .AddPostgreSqlDataContext(connectionString)
-  .AddApplication(Settings.GetOllamaSettings(configuration))
+  .AddApplication(Settings.GetLlmSettings(configuration))
   .AddConfiguredMailClient(configuration)
   .AddMailImportBackgroundService(Settings.GetMailImportBackgroundSettings(configuration));
 

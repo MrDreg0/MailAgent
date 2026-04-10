@@ -1,5 +1,5 @@
 using MailAgent.Api.BackgroundServices;
-using MailAgent.Application.Ollama;
+using MailAgent.Application.Llm;
 using EwsSettings = MailAgent.Mail.Ews.Settings;
 using ImapSettings = MailAgent.Mail.Imap.Settings;
 using MailKit.Security;
@@ -38,18 +38,28 @@ internal static class Settings
     };
   }
 
-  internal static OllamaSettings GetOllamaSettings(IConfiguration configuration)
+  internal static LlmSettings GetLlmSettings(IConfiguration configuration)
   {
-    var ollamaSection = configuration.GetSection("Ollama");
-    var baseUrl = ollamaSection["BaseUrl"] ?? "http://localhost:11434/";
-    var timeoutMinutes = int.TryParse(ollamaSection["TimeoutMinutes"], out var parsedTimeoutMinutes)
+    var llmSection = configuration.GetSection("Llm");
+    var timeoutMinutes = int.TryParse(llmSection["TimeoutMinutes"], out var parsedTimeoutMinutes)
       ? parsedTimeoutMinutes
       : 5;
 
-    return new OllamaSettings
+    return new LlmSettings
     {
-      BaseUrl = baseUrl,
+      Provider = string.IsNullOrWhiteSpace(llmSection["Provider"])
+        ? "ollama"
+        : llmSection["Provider"]!,
+      BaseUrl = string.IsNullOrWhiteSpace(llmSection["BaseUrl"])
+        ? "http://localhost:11434/"
+        : llmSection["BaseUrl"]!,
       Timeout = TimeSpan.FromMinutes(timeoutMinutes),
+      FastModel = string.IsNullOrWhiteSpace(llmSection["FastModel"])
+        ? "llama3.2:3b"
+        : llmSection["FastModel"]!,
+      MainModel = string.IsNullOrWhiteSpace(llmSection["MainModel"])
+        ? "qwen2.5:7b-instruct"
+        : llmSection["MainModel"]!,
     };
   }
 

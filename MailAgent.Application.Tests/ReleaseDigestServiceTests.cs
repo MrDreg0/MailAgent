@@ -1,9 +1,9 @@
 using AutoFixture;
+using MailAgent.Application.Contracts.Llm;
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Contracts.Mail.Models;
-using MailAgent.Application.Contracts.Ollama;
 using MailAgent.Application.Digest;
-using MailAgent.Application.Ollama;
+using MailAgent.Application.Llm;
 using NSubstitute;
 
 namespace MailAgent.Application.Tests;
@@ -13,7 +13,7 @@ public class ReleaseDigestServiceTests
 {
   private Fixture _fixture = null!;
   private IMailRepository _mailRepository = null!;
-  private IOllamaClient _ollamaClient = null!;
+  private ILlmClient _llmClient = null!;
   private ReleaseDigestService _sut = null!;
 
   [SetUp]
@@ -21,8 +21,8 @@ public class ReleaseDigestServiceTests
   {
     _fixture = new Fixture();
     _mailRepository = Substitute.For<IMailRepository>();
-    _ollamaClient = Substitute.For<IOllamaClient>();
-    _sut = new ReleaseDigestService(_mailRepository, _ollamaClient);
+    _llmClient = Substitute.For<ILlmClient>();
+    _sut = new ReleaseDigestService(_mailRepository, _llmClient, CreateLlmSettings());
   }
 
   [Test]
@@ -45,20 +45,20 @@ public class ReleaseDigestServiceTests
       .GetByPeriodFromFolder(folderName, period, cancellationToken)
       .Returns(storedMails);
 
-    var requests = new List<OllamaGenerateRequest>();
+    var requests = new List<LlmGenerateRequest>();
 
-    _ollamaClient
-      .Generate(Arg.Do<OllamaGenerateRequest>(request => requests.Add(request)), cancellationToken)
+    _llmClient
+      .Generate(Arg.Do<LlmGenerateRequest>(request => requests.Add(request)), cancellationToken)
       .Returns(
-        new OllamaGenerateResponse("2, 999, 2"),
-        new OllamaGenerateResponse("  final digest  "));
+        new LlmGenerateResponse("2, 999, 2"),
+        new LlmGenerateResponse("  final digest  "));
 
     // When.
     var result = await _sut.BuildInboxDigestAsync(folderName, period, cancellationToken);
 
     // Then.
     await _mailRepository.Received(1).GetByPeriodFromFolder(folderName, period, cancellationToken);
-    await _ollamaClient.Received(2).Generate(Arg.Any<OllamaGenerateRequest>(), cancellationToken);
+    await _llmClient.Received(2).Generate(Arg.Any<LlmGenerateRequest>(), cancellationToken);
 
     Assert.That(result.TotalFetched, Is.EqualTo(2));
     Assert.That(result.Selected, Is.EqualTo(1));
@@ -97,13 +97,13 @@ public class ReleaseDigestServiceTests
       .GetByPeriodFromFolder(folderName, period, Arg.Any<CancellationToken>())
       .Returns(storedMails);
 
-    var requests = new List<OllamaGenerateRequest>();
+    var requests = new List<LlmGenerateRequest>();
 
-    _ollamaClient
-      .Generate(Arg.Do<OllamaGenerateRequest>(request => requests.Add(request)), Arg.Any<CancellationToken>())
+    _llmClient
+      .Generate(Arg.Do<LlmGenerateRequest>(request => requests.Add(request)), Arg.Any<CancellationToken>())
       .Returns(
-        new OllamaGenerateResponse("not a list of ids"),
-        new OllamaGenerateResponse("digest"));
+        new LlmGenerateResponse("not a list of ids"),
+        new LlmGenerateResponse("digest"));
 
     // When.
     var result = await _sut.BuildInboxDigestAsync(folderName, period);
@@ -133,5 +133,17 @@ public class ReleaseDigestServiceTests
       .With(x => x.Subject, subject ?? _fixture.Create<string>())
       .With(x => x.MarkdownBody, markdownBody ?? _fixture.Create<string>())
       .Create();
+  }
+
+  private static LlmSettings CreateLlmSettings()
+  {
+    return new LlmSettings
+    {
+      Provider = "ollama",
+      BaseUrl = "http://localhost:11434/",
+      Timeout = TimeSpan.FromMinutes(5),
+      FastModel = "llama3.2:3b",
+      MainModel = "qwen2.5:7b-instruct",
+    };
   }
 }
