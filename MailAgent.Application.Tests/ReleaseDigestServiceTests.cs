@@ -223,7 +223,7 @@ public class ReleaseDigestServiceTests
   {
     return new LlmSettings
     {
-      Provider = "ollama",
+      Provider = LlmProvider.Ollama,
       BaseUrl = "http://localhost:11434/",
       Timeout = TimeSpan.FromMinutes(5),
       FastModel = "llama3.2:3b",

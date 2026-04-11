@@ -10,8 +10,19 @@ public static class DependencyInjection
     string connectionString,
     bool enableSensitiveDataLogging = false)
   {
-    services.AddDbContext<PostgreSqlDataContext>(options =>
+    return services.AddPostgreSqlDataContext(_ => connectionString, enableSensitiveDataLogging);
+  }
+
+  public static IServiceCollection AddPostgreSqlDataContext(
+    this IServiceCollection services,
+    Func<IServiceProvider, string> connectionStringFactory,
+    bool enableSensitiveDataLogging = false)
+  {
+    ArgumentNullException.ThrowIfNull(connectionStringFactory);
+
+    services.AddDbContext<PostgreSqlDataContext>((serviceProvider, options) =>
     {
+      var connectionString = connectionStringFactory(serviceProvider);
       options.UseNpgsql(connectionString);
 
       if (enableSensitiveDataLogging)

@@ -1,12 +1,11 @@
 using MailAgent.Database.PostgreSql;
 using MailAgent.Web.Browse;
 using MailAgent.Web.Components;
+using MailAgent.Web.Configuration;
 using Microsoft.Extensions.Logging.Console;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
-var connectionString = builder.Configuration.GetConnectionString("Database")
-  ?? throw new InvalidOperationException("Database connection string is missing");
-var useHttpsRedirection = builder.Configuration.GetValue("UseHttpsRedirection", true);
 
 builder.Logging.AddSimpleConsole(options =>
 {
@@ -23,10 +22,13 @@ builder.Services.AddRazorComponents()
   .AddInteractiveServerComponents();
 
 builder.Services
-  .AddPostgreSqlDataContext(connectionString)
+  .AddValidatedConfiguration(builder.Configuration)
+  .AddPostgreSqlDataContext(serviceProvider =>
+    serviceProvider.GetRequiredService<IOptions<ConnectionStringsConfiguration>>().Value.Database!)
   .AddScoped<MailBrowserService>();
 
 var app = builder.Build();
+var useHttpsRedirection = bool.Parse(app.Services.GetRequiredService<IOptions<WebHostConfiguration>>().Value.UseHttpsRedirection!);
 
 if (!app.Environment.IsDevelopment())
 {

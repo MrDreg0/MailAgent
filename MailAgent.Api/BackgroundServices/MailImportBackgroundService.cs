@@ -16,12 +16,12 @@ internal sealed class MailImportBackgroundService(
       return;
     }
 
-    if (settings.RunOnStartup)
+    if (settings.RunOnStartup == true)
     {
       await RunImportCycle(stoppingToken);
     }
 
-    using var timer = new PeriodicTimer(settings.Interval);
+    using var timer = new PeriodicTimer(settings.Interval!.Value);
 
     while (await timer.WaitForNextTickAsync(stoppingToken))
     {
@@ -34,7 +34,7 @@ internal sealed class MailImportBackgroundService(
     foreach (var folder in settings.Folders)
     {
       DateTimeOffset? latestDateUtc = null;
-      var fromUtc = DateTimeOffset.UtcNow.Subtract(settings.InitialLookbackPeriod);
+      var fromUtc = DateTimeOffset.UtcNow.Subtract(settings.InitialLookbackPeriod!.Value);
 
       try
       {
@@ -42,7 +42,7 @@ internal sealed class MailImportBackgroundService(
         var mailImportService = scope.ServiceProvider.GetRequiredService<MailImportService>();
         var mailRepository = scope.ServiceProvider.GetRequiredService<IMailRepository>();
         latestDateUtc = await mailRepository.GetLatestDateUtcByFolder(folder, cancellationToken);
-        fromUtc = latestDateUtc?.Subtract(settings.OverlapPeriod) ?? fromUtc;
+        fromUtc = latestDateUtc?.Subtract(settings.OverlapPeriod!.Value) ?? fromUtc;
         var result = await mailImportService.ImportFromDate(folder, fromUtc, cancellationToken);
 
         logger.LogInformation(

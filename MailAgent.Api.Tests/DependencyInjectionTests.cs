@@ -1,5 +1,5 @@
-using AutoFixture;
 using MailAgent.Api.BackgroundServices;
+using MailAgent.Api.Configuration;
 using MailAgent.Application;
 using MailAgent.Application.Contracts.Llm;
 using MailAgent.Application.Contracts.Mail;
@@ -7,37 +7,23 @@ using MailAgent.Application.Llm;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace MailAgent.Api.Tests;
 
 [TestFixture]
 public class DependencyInjectionTests
 {
-  private Fixture _fixture = null!;
-
-  [SetUp]
-  public void SetUp()
-  {
-    _fixture = new Fixture();
-  }
-
   [Test]
   public void AddConfiguredMailClient_RegistersImapMailClient_WhenProviderIsImap()
   {
     // Given.
     var services = new ServiceCollection();
-    var configuration = BuildConfiguration(new Dictionary<string, string?>
-    {
-      ["MailServer:Provider"] = "imap",
-      ["MailServer:Username"] = _fixture.Create<string>(),
-      ["MailServer:Password"] = _fixture.Create<string>(),
-      ["MailServer:Imap:Host"] = "imap.example.com",
-      ["MailServer:Imap:Port"] = "993",
-      ["MailServer:Imap:Security"] = "SslOnConnect",
-    });
+    var configuration = CreateValidConfiguration();
 
     // When.
-    services.AddConfiguredMailClient(configuration);
+    services.AddValidatedConfiguration(configuration);
+    services.AddConfiguredMailClient();
     using var serviceProvider = services.BuildServiceProvider();
 
     // Then.
@@ -51,19 +37,19 @@ public class DependencyInjectionTests
   {
     // Given.
     var services = new ServiceCollection();
-    var configuration = BuildConfiguration(new Dictionary<string, string?>
-    {
-      ["MailServer:Provider"] = "smtp",
-      ["MailServer:Username"] = _fixture.Create<string>(),
-      ["MailServer:Password"] = _fixture.Create<string>(),
-    });
+    var configurationValues = CreateValidConfigurationValues();
+    configurationValues["MailServer:Provider"] = "smtp";
+    var configuration = BuildConfiguration(configurationValues);
 
     // When.
-    var act = () => services.AddConfiguredMailClient(configuration);
+    services.AddValidatedConfiguration(configuration);
+    services.AddConfiguredMailClient();
+    using var serviceProvider = services.BuildServiceProvider();
+    var act = () => serviceProvider.GetRequiredService<IMailClient>();
 
     // Then.
     Assert.That(act, Throws.TypeOf<InvalidOperationException>()
-      .With.Message.Contains("Unsupported mail provider"));
+      .With.Message.Contains("Failed to convert configuration value 'smtp' at 'MailServer:Provider'"));
   }
 
   [Test]
@@ -72,20 +58,31 @@ public class DependencyInjectionTests
     // Given.
     var services = new ServiceCollection();
     services.AddLogging();
-    var settings = new MailImportBackgroundSettings(
-      Enabled: true,
-      RunOnStartup: true,
-      Interval: TimeSpan.FromHours(1),
-      InitialLookbackPeriod: TimeSpan.FromDays(1),
-      OverlapPeriod: TimeSpan.FromMinutes(30),
-      Folders: ["/"]);
+    var configurationValues = CreateValidConfigurationValues();
+    configurationValues["MailImport:Enabled"] = "true";
+    configurationValues["MailImport:RunOnStartup"] = "true";
+    configurationValues["MailImport:Interval"] = "01:00:00";
+    configurationValues["MailImport:InitialLookbackPeriod"] = "1.00:00:00";
+    configurationValues["MailImport:OverlapPeriod"] = "00:30:00";
+    configurationValues["MailImport:Folders:0"] = "/";
+    var configuration = BuildConfiguration(configurationValues);
 
     // When.
-    services.AddMailImportBackgroundService(settings);
+    services.AddValidatedConfiguration(configuration);
+    services.AddMailImportBackgroundService();
     using var serviceProvider = services.BuildServiceProvider();
+    var settings = serviceProvider.GetRequiredService<MailImportBackgroundSettings>();
 
     // Then.
-    Assert.That(serviceProvider.GetRequiredService<MailImportBackgroundSettings>(), Is.EqualTo(settings));
+    Assert.Multiple(() =>
+    {
+      Assert.That(settings.Enabled, Is.True);
+      Assert.That(settings.RunOnStartup, Is.True);
+      Assert.That(settings.Interval, Is.EqualTo(TimeSpan.FromHours(1)));
+      Assert.That(settings.InitialLookbackPeriod, Is.EqualTo(TimeSpan.FromDays(1)));
+      Assert.That(settings.OverlapPeriod, Is.EqualTo(TimeSpan.FromMinutes(30)));
+      Assert.That(settings.Folders, Is.EqualTo(new[] { "/" }));
+    });
     Assert.That(
       serviceProvider.GetServices<IHostedService>().Any(service => service is MailImportBackgroundService),
       Is.True);
@@ -96,9 +93,11 @@ public class DependencyInjectionTests
   {
     // Given.
     var services = new ServiceCollection();
+    services.AddLogging();
+    services.AddSingleton(CreateLlmSettings(provider: LlmProvider.Ollama));
 
     // When.
-    services.AddApplication(CreateLlmSettings(provider: "ollama"));
+    services.AddApplication();
 
     using var serviceProvider = services.BuildServiceProvider();
 
@@ -111,9 +110,11 @@ public class DependencyInjectionTests
   {
     // Given.
     var services = new ServiceCollection();
+    services.AddLogging();
+    services.AddSingleton(CreateLlmSettings(provider: LlmProvider.LmStudio));
 
     // When.
-    services.AddApplication(CreateLlmSettings(provider: "lmstudio"));
+    services.AddApplication();
 
     using var serviceProvider = services.BuildServiceProvider();
 
@@ -126,13 +127,49 @@ public class DependencyInjectionTests
   {
     // Given.
     var services = new ServiceCollection();
+    services.AddLogging();
+    services.AddSingleton(new LlmSettings
+    {
+      Provider = (LlmProvider)999,
+      BaseUrl = "http://localhost:11434/",
+      Timeout = TimeSpan.FromMinutes(5),
+      FastModel = "llama3.2:3b",
+      MainModel = "qwen2.5:7b-instruct",
+    });
 
     // When.
-    var act = () => services.AddApplication(CreateLlmSettings(provider: "openai"));
+    services.AddApplication();
+    using var serviceProvider = services.BuildServiceProvider();
+    var act = () => serviceProvider.GetRequiredService<ILlmClient>();
 
     // Then.
     Assert.That(act, Throws.TypeOf<InvalidOperationException>()
       .With.Message.Contains("Unsupported LLM provider"));
+  }
+
+  private static IConfiguration CreateValidConfiguration()
+  {
+    return BuildConfiguration(CreateValidConfigurationValues());
+  }
+
+  private static Dictionary<string, string?> CreateValidConfigurationValues()
+  {
+    return new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:Database"] = "Host=localhost;Database=mailagent;Username=postgres;Password=postgres",
+      ["MailServer:Provider"] = nameof(MailProvider.Imap),
+      ["MailServer:Username"] = "user@example.com",
+      ["MailServer:Password"] = "secret",
+      ["MailServer:Imap:Host"] = "imap.example.com",
+      ["MailServer:Imap:Port"] = "993",
+      ["MailServer:Imap:Security"] = "SslOnConnect",
+      ["Llm:Provider"] = nameof(LlmProvider.Ollama),
+      ["Llm:BaseUrl"] = "http://localhost:11434/",
+      ["Llm:TimeoutMinutes"] = "5",
+      ["Llm:FastModel"] = "llama3.2:3b",
+      ["Llm:MainModel"] = "qwen2.5:7b-instruct",
+      ["MailImport:Enabled"] = "false",
+    };
   }
 
   private static IConfiguration BuildConfiguration(IReadOnlyDictionary<string, string?> values)
@@ -142,7 +179,7 @@ public class DependencyInjectionTests
       .Build();
   }
 
-  private static LlmSettings CreateLlmSettings(string provider)
+  private static LlmSettings CreateLlmSettings(LlmProvider provider)
   {
     return new LlmSettings
     {

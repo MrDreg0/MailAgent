@@ -1,12 +1,12 @@
 using MailAgent.Api;
+using MailAgent.Api.Configuration;
 using MailAgent.Api.Endpoints;
 using MailAgent.Application;
 using MailAgent.Database.PostgreSql;
 using Microsoft.Extensions.Logging.Console;
+using Microsoft.Extensions.Options;
 
 var webApplicationBuilder = WebApplication.CreateBuilder(args);
-var configuration = webApplicationBuilder.Configuration;
-var connectionString = configuration.GetConnectionString("Database") ?? throw new InvalidOperationException("Database connection string is missing");
 
 webApplicationBuilder.Logging.AddSimpleConsole(options =>
 {
@@ -18,10 +18,11 @@ webApplicationBuilder.Logging.AddSimpleConsole(options =>
 });
 
 webApplicationBuilder.Services
-  .AddPostgreSqlDataContext(connectionString)
-  .AddApplication(Settings.GetLlmSettings(configuration))
-  .AddConfiguredMailClient(configuration)
-  .AddMailImportBackgroundService(Settings.GetMailImportBackgroundSettings(configuration));
+  .AddValidatedConfiguration(webApplicationBuilder.Configuration)
+  .AddPostgreSqlDataContext(serviceProvider => serviceProvider.GetRequiredService<IOptions<ConnectionStringsConfiguration>>().Value.Database!)
+  .AddApplication()
+  .AddConfiguredMailClient()
+  .AddMailImportBackgroundService();
 
 var webApplication = webApplicationBuilder.Build();
 

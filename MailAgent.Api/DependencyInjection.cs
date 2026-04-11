@@ -1,31 +1,35 @@
 using MailAgent.Api.BackgroundServices;
-using MailAgent.Mail;
+using MailAgent.Api.Configuration;
+using MailAgent.Application.Contracts.Mail;
+using Microsoft.Extensions.Options;
 namespace MailAgent.Api;
 
 internal static class DependencyInjection
 {
-  internal static IServiceCollection AddConfiguredMailClient(this IServiceCollection services, IConfiguration configuration)
+  extension(IServiceCollection services)
   {
-    var mailServerSection = configuration.GetSection("MailServer");
-    var provider = mailServerSection["Provider"]?.Trim().ToLowerInvariant();
-    var username = mailServerSection["Username"]
-      ?? throw new InvalidOperationException("MailServer:Username configuration is missing");
-    var password = mailServerSection["Password"]
-      ?? throw new InvalidOperationException("MailServer:Password configuration is missing");
-
-    return provider switch
+    internal IServiceCollection AddConfiguredMailClient()
     {
-      "imap" => services.AddImapMailClient(Settings.CreateImapSettings(mailServerSection, username, password)),
-      "ews" => services.AddEwsMailClient(Settings.CreateEwsSettings(mailServerSection, username, password)),
-      _ => throw new InvalidOperationException($"Unsupported mail provider '{provider}'. Use 'ews' or 'imap'.")
-    };
-  }
+      services.AddSingleton<IMailClient>(serviceProvider =>
+      {
+        var configuration = serviceProvider.GetRequiredService<IOptions<MailServerConfiguration>>().Value;
 
-  internal static IServiceCollection AddMailImportBackgroundService(this IServiceCollection services, MailImportBackgroundSettings settings)
-  {
-    services.AddSingleton(settings);
-    services.AddHostedService<MailImportBackgroundService>();
+        return configuration.GetProvider() switch
+        {
+          MailProvider.Imap => new Mail.Imap.MailClient(configuration.ToImapSettings()),
+          MailProvider.Ews => new Mail.Ews.MailClient(configuration.ToEwsSettings()),
+          _ => throw new InvalidOperationException($"Unsupported mail provider '{configuration.Provider}'.")
+        };
+      });
 
-    return services;
+      return services;
+    }
+
+    internal IServiceCollection AddMailImportBackgroundService()
+    {
+      services.AddHostedService<MailImportBackgroundService>();
+
+      return services;
+    }
   }
 }

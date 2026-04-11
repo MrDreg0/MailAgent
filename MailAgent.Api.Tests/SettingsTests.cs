@@ -1,221 +1,153 @@
-using AutoFixture;
+using MailAgent.Api.Configuration;
 using MailAgent.Api.BackgroundServices;
-using MailKit.Security;
+using MailAgent.Application.Llm;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace MailAgent.Api.Tests;
 
 [TestFixture]
 public class SettingsTests
 {
-  private Fixture _fixture = null!;
-
-  [SetUp]
-  public void SetUp()
-  {
-    _fixture = new Fixture();
-  }
-
   [Test]
-  public void GetLlmSettings_ReturnsConfiguredValues_WhenSectionExists()
+  public void AddValidatedConfiguration_RegistersRuntimeSettings_WhenConfigurationIsValid()
   {
     // Given.
-    var configuration = BuildConfiguration(new Dictionary<string, string?>
-    {
-      ["Llm:Provider"] = "lmstudio",
-      ["Llm:BaseUrl"] = "http://localhost:1234/v1/",
-      ["Llm:TimeoutMinutes"] = "12",
-      ["Llm:FastModel"] = "fast-local-model",
-      ["Llm:MainModel"] = "main-local-model",
-    });
+    var services = new ServiceCollection();
+    var configuration = CreateValidConfiguration();
 
     // When.
-    var result = Settings.GetLlmSettings(configuration);
+    services.AddValidatedConfiguration(configuration);
+    using var serviceProvider = services.BuildServiceProvider();
+
+    var llmSettings = serviceProvider.GetRequiredService<LlmSettings>();
+    var importSettings = serviceProvider.GetRequiredService<MailImportBackgroundSettings>();
 
     // Then.
     Assert.Multiple(() =>
     {
-      Assert.That(result.Provider, Is.EqualTo("lmstudio"));
-      Assert.That(result.BaseUrl, Is.EqualTo("http://localhost:1234/v1/"));
-      Assert.That(result.Timeout, Is.EqualTo(TimeSpan.FromMinutes(12)));
-      Assert.That(result.FastModel, Is.EqualTo("fast-local-model"));
-      Assert.That(result.MainModel, Is.EqualTo("main-local-model"));
+      Assert.That(llmSettings.Provider, Is.EqualTo(LlmProvider.LmStudio));
+      Assert.That(llmSettings.BaseUrl, Is.EqualTo("http://localhost:1234/v1/"));
+      Assert.That(llmSettings.Timeout, Is.EqualTo(TimeSpan.FromMinutes(12)));
+      Assert.That(llmSettings.FastModel, Is.EqualTo("fast-local-model"));
+      Assert.That(llmSettings.MainModel, Is.EqualTo("main-local-model"));
+      Assert.That(importSettings.Enabled, Is.False);
+      Assert.That(importSettings.RunOnStartup, Is.Null);
+      Assert.That(importSettings.Interval, Is.Null);
+      Assert.That(importSettings.Folders, Is.Empty);
     });
   }
 
   [Test]
-  public void GetLlmSettings_ReturnsDefaults_WhenSectionIsMissing()
+  public void AddValidatedConfiguration_Throws_WhenLlmBaseUrlIsMissing()
   {
     // Given.
-    var configuration = BuildConfiguration(new Dictionary<string, string?>());
+    var services = new ServiceCollection();
+    var configurationValues = CreateValidConfigurationValues();
+    configurationValues["Llm:BaseUrl"] = null;
+    var configuration = BuildConfiguration(configurationValues);
 
     // When.
-    var result = Settings.GetLlmSettings(configuration);
+    services.AddValidatedConfiguration(configuration);
+    using var serviceProvider = services.BuildServiceProvider();
+    var act = () => serviceProvider.GetRequiredService<LlmSettings>();
 
     // Then.
-    Assert.Multiple(() =>
-    {
-      Assert.That(result.Provider, Is.EqualTo("ollama"));
-      Assert.That(result.BaseUrl, Is.EqualTo("http://localhost:11434/"));
-      Assert.That(result.Timeout, Is.EqualTo(TimeSpan.FromMinutes(5)));
-      Assert.That(result.FastModel, Is.EqualTo("llama3.2:3b"));
-      Assert.That(result.MainModel, Is.EqualTo("qwen2.5:7b-instruct"));
-    });
+    Assert.That(act, Throws.TypeOf<OptionsValidationException>()
+      .With.Message.Contains("BaseUrl configuration is missing."));
   }
 
   [Test]
-  public void GetLlmSettings_ReturnsLmStudioDefaultBaseUrl_WhenProviderIsLmStudioAndBaseUrlIsMissing()
+  public void AddValidatedConfiguration_AllowsDisabledMailImportWithoutSchedule()
   {
     // Given.
-    var configuration = BuildConfiguration(new Dictionary<string, string?>
-    {
-      ["Llm:Provider"] = "lmstudio",
-    });
+    var services = new ServiceCollection();
+    var configuration = CreateValidConfiguration();
 
     // When.
-    var result = Settings.GetLlmSettings(configuration);
+    services.AddValidatedConfiguration(configuration);
+    using var serviceProvider = services.BuildServiceProvider();
 
-    // Then.
-    Assert.That(result.BaseUrl, Is.EqualTo("http://localhost:1234/v1/"));
-  }
-
-  [Test]
-  public void CreateImapSettings_ReturnsParsedSettings_WhenConfigurationIsValid()
-  {
-    // Given.
-    var username = _fixture.Create<string>();
-    var password = _fixture.Create<string>();
-    var mailServerSection = BuildConfiguration(new Dictionary<string, string?>
-    {
-      ["MailServer:Imap:Host"] = "imap.example.com",
-      ["MailServer:Imap:Port"] = "993",
-      ["MailServer:Imap:Security"] = "SslOnConnect",
-    }).GetSection("MailServer");
-
-    // When.
-    var result = Settings.CreateImapSettings(mailServerSection, username, password);
-
-    // Then.
-    Assert.Multiple(() =>
-    {
-      Assert.That(result.Username, Is.EqualTo(username));
-      Assert.That(result.Password, Is.EqualTo(password));
-      Assert.That(result.Host, Is.EqualTo("imap.example.com"));
-      Assert.That(result.Port, Is.EqualTo(993));
-      Assert.That(result.Security, Is.EqualTo(SecureSocketOptions.SslOnConnect));
-    });
-  }
-
-  [Test]
-  public void CreateImapSettings_Throws_WhenSecurityIsInvalid()
-  {
-    // Given.
-    var mailServerSection = BuildConfiguration(new Dictionary<string, string?>
-    {
-      ["MailServer:Imap:Host"] = "imap.example.com",
-      ["MailServer:Imap:Port"] = "993",
-      ["MailServer:Imap:Security"] = "bad-value",
-    }).GetSection("MailServer");
-
-    // When.
-    var act = () => Settings.CreateImapSettings(mailServerSection, _fixture.Create<string>(), _fixture.Create<string>());
-
-    // Then.
-    Assert.That(act, Throws.TypeOf<InvalidOperationException>()
-      .With.Message.Contains("Invalid security setting"));
-  }
-
-  [Test]
-  public void CreateEwsSettings_ReturnsConfiguredValues()
-  {
-    // Given.
-    var username = _fixture.Create<string>();
-    var password = _fixture.Create<string>();
-    var mailServerSection = BuildConfiguration(new Dictionary<string, string?>
-    {
-      ["MailServer:Ews:Url"] = "https://mail.example.com/EWS/Exchange.asmx",
-      ["MailServer:Ews:Domain"] = "EXAMPLE",
-    }).GetSection("MailServer");
-
-    // When.
-    var result = Settings.CreateEwsSettings(mailServerSection, username, password);
-
-    // Then.
-    Assert.Multiple(() =>
-    {
-      Assert.That(result.Username, Is.EqualTo(username));
-      Assert.That(result.Password, Is.EqualTo(password));
-      Assert.That(result.Url, Is.EqualTo("https://mail.example.com/EWS/Exchange.asmx"));
-      Assert.That(result.Domain, Is.EqualTo("EXAMPLE"));
-    });
-  }
-
-  [Test]
-  public void GetMailImportBackgroundSettings_ReturnsConfiguredValues()
-  {
-    // Given.
-    var configuration = BuildConfiguration(new Dictionary<string, string?>
-    {
-      ["MailImport:Enabled"] = "true",
-      ["MailImport:RunOnStartup"] = "false",
-      ["MailImport:Interval"] = "01:00:00",
-      ["MailImport:InitialLookbackPeriod"] = "1.00:00:00",
-      ["MailImport:OverlapPeriod"] = "00:30:00",
-      ["MailImport:Folders:0"] = "/",
-      ["MailImport:Folders:1"] = "Releases",
-    });
-
-    // When.
-    var result = Settings.GetMailImportBackgroundSettings(configuration);
-
-    // Then.
-    Assert.Multiple(() =>
-    {
-      Assert.That(result.Enabled, Is.True);
-      Assert.That(result.RunOnStartup, Is.False);
-      Assert.That(result.Interval, Is.EqualTo(TimeSpan.FromHours(1)));
-      Assert.That(result.InitialLookbackPeriod, Is.EqualTo(TimeSpan.FromDays(1)));
-      Assert.That(result.OverlapPeriod, Is.EqualTo(TimeSpan.FromMinutes(30)));
-      Assert.That(result.Folders, Is.EqualTo(new[] { "/", "Releases" }));
-    });
-  }
-
-  [Test]
-  public void GetMailImportBackgroundSettings_ReturnsDefaults_WhenSectionIsMissing()
-  {
-    // Given.
-    var configuration = BuildConfiguration(new Dictionary<string, string?>());
-
-    // When.
-    var result = Settings.GetMailImportBackgroundSettings(configuration);
+    var result = serviceProvider.GetRequiredService<MailImportBackgroundSettings>();
 
     // Then.
     Assert.Multiple(() =>
     {
       Assert.That(result.Enabled, Is.False);
-      Assert.That(result.RunOnStartup, Is.True);
-      Assert.That(result.Interval, Is.EqualTo(TimeSpan.FromHours(1)));
-      Assert.That(result.InitialLookbackPeriod, Is.EqualTo(TimeSpan.FromDays(1)));
-      Assert.That(result.OverlapPeriod, Is.EqualTo(TimeSpan.FromMinutes(30)));
-      Assert.That(result.Folders, Is.EqualTo(new[] { "/" }));
+      Assert.That(result.RunOnStartup, Is.Null);
+      Assert.That(result.Interval, Is.Null);
+      Assert.That(result.InitialLookbackPeriod, Is.Null);
+      Assert.That(result.OverlapPeriod, Is.Null);
+      Assert.That(result.Folders, Is.Empty);
     });
   }
 
   [Test]
-  public void GetMailImportBackgroundSettings_Throws_WhenIntervalIsInvalid()
+  public void AddValidatedConfiguration_Throws_WhenMailImportEnabledWithoutSchedule()
   {
     // Given.
-    var configuration = BuildConfiguration(new Dictionary<string, string?>
-    {
-      ["MailImport:Interval"] = "bad-value",
-    });
+    var services = new ServiceCollection();
+    var configurationValues = CreateValidConfigurationValues();
+    configurationValues["MailImport:Enabled"] = "true";
+    var configuration = BuildConfiguration(configurationValues);
 
     // When.
-    var act = () => Settings.GetMailImportBackgroundSettings(configuration);
+    services.AddValidatedConfiguration(configuration);
+    using var serviceProvider = services.BuildServiceProvider();
+    var act = () => serviceProvider.GetRequiredService<MailImportBackgroundSettings>();
 
     // Then.
-    Assert.That(act, Throws.TypeOf<InvalidOperationException>()
-      .With.Message.Contains("MailImport:Interval"));
+    Assert.That(act, Throws.TypeOf<OptionsValidationException>()
+      .With.Message.Contains("RunOnStartup configuration is missing."));
+  }
+
+  [Test]
+  public void AddValidatedConfiguration_Throws_WhenImapSecurityIsInvalid()
+  {
+    // Given.
+    var services = new ServiceCollection();
+    var configurationValues = CreateValidConfigurationValues();
+    configurationValues["MailServer:Imap:Security"] = "bad-value";
+    var configuration = BuildConfiguration(configurationValues);
+
+    // When.
+    services.AddValidatedConfiguration(configuration);
+    using var serviceProvider = services.BuildServiceProvider();
+    var act = () => serviceProvider.GetRequiredService<IOptions<MailServerConfiguration>>().Value;
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<OptionsValidationException>()
+      .With.Message.Contains("Invalid Imap.Security setting"));
+  }
+
+  private static IConfiguration CreateValidConfiguration()
+  {
+    return BuildConfiguration(CreateValidConfigurationValues());
+  }
+
+  private static Dictionary<string, string?> CreateValidConfigurationValues()
+  {
+    return new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:Database"] = "Host=localhost;Database=mailagent;Username=postgres;Password=postgres",
+      ["MailServer:Provider"] = nameof(MailProvider.Imap),
+      ["MailServer:Username"] = "user@example.com",
+      ["MailServer:Password"] = "secret",
+      ["MailServer:Imap:Host"] = "imap.example.com",
+      ["MailServer:Imap:Port"] = "993",
+      ["MailServer:Imap:Security"] = "SslOnConnect",
+      ["Llm:Provider"] = nameof(LlmProvider.LmStudio),
+      ["Llm:BaseUrl"] = "http://localhost:1234/v1/",
+      ["Llm:TimeoutMinutes"] = "12",
+      ["Llm:FastModel"] = "fast-local-model",
+      ["Llm:MainModel"] = "main-local-model",
+      ["MailImport:Enabled"] = "false",
+      ["MailImport:RunOnStartup"] = null,
+      ["MailImport:Interval"] = null,
+      ["MailImport:InitialLookbackPeriod"] = null,
+      ["MailImport:OverlapPeriod"] = null,
+    };
   }
 
   private static IConfiguration BuildConfiguration(IReadOnlyDictionary<string, string?> values)

@@ -16,16 +16,16 @@
       MailImport__Enabled: "true"
       MailImport__Folders__0: "Releases"
       
-      MailServer__Provider: ${MAIL_PROVIDER:-imap}
-      MailServer__Username: ${MAIL_USERNAME:-demo}
-      MailServer__Password: ${MAIL_PASSWORD:-demo}
+      MailServer__Provider: ${MAIL_PROVIDER}
+      MailServer__Username: ${MAIL_USERNAME}
+      MailServer__Password: ${MAIL_PASSWORD}
       
-      MailServer__Imap__Host: ${MAIL_IMAP_HOST:-mail.example.com}
-      MailServer__Imap__Port: ${MAIL_IMAP_PORT:-993}
-      MailServer__Imap__Security: ${MAIL_IMAP_SECURITY:-SslOnConnect}
+      MailServer__Imap__Host: ${MAIL_IMAP_HOST}
+      MailServer__Imap__Port: ${MAIL_IMAP_PORT}
+      MailServer__Imap__Security: ${MAIL_IMAP_SECURITY}
       
-      MailServer__Ews__Url: ${MAIL_EWS_URL:-https://mail.example.com/EWS/Exchange.asmx}
-      MailServer__Ews__Domain: ${MAIL_EWS_DOMAIN:-}
+      MailServer__Ews__Url: ${MAIL_EWS_URL}
+      MailServer__Ews__Domain: ${MAIL_EWS_DOMAIN}
     depends_on:
       - postgres
     ports:

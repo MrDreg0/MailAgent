@@ -146,7 +146,7 @@ public class MailEndpointsTests
     builder.Services.AddSingleton(_llmClient);
     builder.Services.AddSingleton(new LlmSettings
     {
-      Provider = "ollama",
+      Provider = LlmProvider.Ollama,
       BaseUrl = "http://localhost:11434/",
       Timeout = TimeSpan.FromMinutes(5),
       FastModel = "llama3.2:3b",
