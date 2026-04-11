@@ -1,4 +1,5 @@
 using AutoFixture;
+using MailAgent.Application.Exceptions;
 
 namespace MailAgent.Mail.Tests;
 
@@ -83,7 +84,7 @@ public class EwsMailClientTests
     var act = () => sut.GetLatestFromInboxAsync(1);
 
     // Then.
-    Assert.That(act, Throws.TypeOf<InvalidOperationException>()
+    Assert.That(act, Throws.TypeOf<MailAgentConfigurationException>()
       .With.Message.Contains("EWS URL must be configured."));
   }
 }

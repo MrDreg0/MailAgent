@@ -3,6 +3,7 @@ using MailAgent.Api.Configuration;
 using MailAgent.Application;
 using MailAgent.Application.Contracts.Llm;
 using MailAgent.Application.Contracts.Mail;
+using MailAgent.Application.Exceptions;
 using MailAgent.Application.Llm;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,19 +59,31 @@ public class DependencyInjectionTests
   {
     // Given.
     var services = new ServiceCollection();
-    var configurationValues = CreateValidConfigurationValues();
-    configurationValues["MailServer:Provider"] = "smtp";
-    var configuration = BuildConfiguration(configurationValues);
+    services.AddSingleton<IOptions<MailServerConfiguration>>(Options.Create(new MailServerConfiguration
+    {
+      Provider = (MailProvider)999,
+      Username = "user@example.com",
+      Password = "secret",
+      Imap = new MailServerImapConfiguration
+      {
+        Host = "imap.example.com",
+        Port = "993",
+        Security = "SslOnConnect",
+      },
+      Ews = new MailServerEwsConfiguration
+      {
+        Url = "https://ews.example.com/EWS/Exchange.asmx",
+      }
+    }));
 
     // When.
-    services.AddValidatedConfiguration(configuration);
     services.AddConfiguredMailClient();
     using var serviceProvider = services.BuildServiceProvider();
     var act = () => serviceProvider.GetRequiredService<IMailClient>();
 
     // Then.
-    Assert.That(act, Throws.TypeOf<InvalidOperationException>()
-      .With.Message.Contains("Failed to convert configuration value 'smtp' at 'MailServer:Provider'"));
+    Assert.That(act, Throws.TypeOf<UnsupportedMailProviderException>()
+      .With.Message.Contains("Unsupported mail provider"));
   }
 
   [Test]
@@ -164,7 +177,7 @@ public class DependencyInjectionTests
     var act = () => serviceProvider.GetRequiredService<ILlmClient>();
 
     // Then.
-    Assert.That(act, Throws.TypeOf<InvalidOperationException>()
+    Assert.That(act, Throws.TypeOf<UnsupportedLlmProviderException>()
       .With.Message.Contains("Unsupported LLM provider"));
   }
 

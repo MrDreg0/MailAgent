@@ -1,5 +1,6 @@
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Contracts.Mail.Models;
+using MailAgent.Application.Exceptions;
 using Microsoft.Exchange.WebServices.Data;
 
 namespace MailAgent.Mail.Ews;
@@ -146,7 +147,7 @@ public sealed class MailClient(Settings settings) : IMailClient
   {
     if (string.IsNullOrWhiteSpace(settings.Url))
     {
-      throw new InvalidOperationException("EWS URL must be configured.");
+      throw new MailAgentConfigurationException("EWS URL must be configured.");
     }
 
     var service = new ExchangeService(ExchangeVersion.Exchange2013_SP1)
@@ -178,7 +179,7 @@ public sealed class MailClient(Settings settings) : IMailClient
 
       if (nextFolder is null)
       {
-        throw new InvalidOperationException($"Folder '{folderPath}' was not found under Inbox.");
+        throw new MailFolderNotFoundException(folderPath);
       }
 
       currentFolderId = nextFolder.Id;

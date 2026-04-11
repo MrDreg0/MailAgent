@@ -1,4 +1,5 @@
 @page "/messages"
+@using MailAgent.Application.Exceptions
 @using MailAgent.Web.Browse
 @inject MailBrowserService MailBrowserService
 
@@ -105,6 +106,16 @@
       {
         Data = mailPage.Items,
         TotalCount = mailPage.TotalCount
+      };
+    }
+    catch (MailAgentException exception)
+    {
+      _errorMessage = $"Failed to load messages: {exception.Message}";
+
+      return new GridDataProviderResult<StoredMail>
+      {
+        Data = [],
+        TotalCount = 0
       };
     }
     catch (Exception exception)

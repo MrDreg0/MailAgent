@@ -1,6 +1,7 @@
 using MailAgent.Api.BackgroundServices;
 using MailAgent.Api.Configuration;
 using MailAgent.Application.Contracts.Mail;
+using MailAgent.Application.Exceptions;
 using Microsoft.Extensions.Options;
 namespace MailAgent.Api;
 
@@ -18,7 +19,7 @@ internal static class DependencyInjection
         {
           MailProvider.Imap => new Mail.Imap.MailClient(configuration.ToImapSettings()),
           MailProvider.Ews => new Mail.Ews.MailClient(configuration.ToEwsSettings()),
-          _ => throw new InvalidOperationException($"Unsupported mail provider '{configuration.Provider}'.")
+          _ => throw new UnsupportedMailProviderException(configuration.Provider?.ToString() ?? "<null>")
         };
       });
 

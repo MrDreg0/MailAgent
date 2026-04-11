@@ -1,5 +1,6 @@
 using MailAgent.Application.Contracts.Llm;
 using MailAgent.Application.Digest;
+using MailAgent.Application.Exceptions;
 using MailAgent.Application.Import;
 using MailAgent.Application.Llm;
 using MailAgent.Application.LmStudio;
@@ -26,7 +27,7 @@ public static class DependencyInjection
         {
           LlmProvider.Ollama => serviceProvider.GetRequiredService<OllamaLlmClient>(),
           LlmProvider.LmStudio => serviceProvider.GetRequiredService<LmStudioLlmClient>(),
-          _ => throw new InvalidOperationException($"Unsupported LLM provider '{llmSettings.Provider}'.")
+          _ => throw new UnsupportedLlmProviderException(llmSettings.Provider.ToString())
         };
       });
 

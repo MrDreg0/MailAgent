@@ -1,5 +1,6 @@
 using MailAgent.Application.Import;
 using MailAgent.Application.Contracts.Mail;
+using MailAgent.Application.Exceptions;
 
 namespace MailAgent.Api.BackgroundServices;
 
@@ -59,6 +60,14 @@ internal sealed class MailImportBackgroundService(
       catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
       {
         throw;
+      }
+      catch (MailAgentException exception)
+      {
+        logger.LogError(
+          exception,
+          "Mail import failed for folder '{Folder}' since {FromUtc}.",
+          folder,
+          fromUtc);
       }
       catch (Exception exception)
       {
