@@ -121,6 +121,54 @@ public class MailRepositoryTests
   }
 
   [Test]
+  public void GetLatestFromFolderAsync_Throws_WhenFolderNameIsEmpty()
+  {
+    // When.
+    var act = () => _sut.GetLatestFromFolderAsync(" ", 1);
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<ArgumentException>());
+  }
+
+  [Test]
+  public async Task GetByPeriodFromFolder_ReturnsOnlyMailsFromRequestedFolderWithinPeriod()
+  {
+    // Given.
+    var now = DateTimeOffset.UtcNow;
+    _dbContext.Mails.AddRange(
+      new MailRecord(1, "Releases", "message-1", now - TimeSpan.FromMinutes(30), "a@example.com", "recent", "raw-1", "md-1", "2026-03-16 08:00:00Z"),
+      new MailRecord(2, "Releases", "message-2", now - TimeSpan.FromHours(3), "b@example.com", "old", "raw-2", "md-2", "2026-03-16 10:00:00Z"),
+      new MailRecord(3, "Other", "message-3", now - TimeSpan.FromMinutes(20), "c@example.com", "other-folder", "raw-3", "md-3", "2026-03-16 12:00:00Z"));
+    await _dbContext.SaveChangesAsync();
+
+    // When.
+    var result = await _sut.GetByPeriodFromFolder("Releases", TimeSpan.FromHours(1));
+
+    // Then.
+    Assert.That(result.Select(x => x.MessageId), Is.EqualTo(["message-1"]));
+  }
+
+  [Test]
+  public async Task GetByPeriodFromFolder_ReturnsEmptyList_WhenPeriodIsZero()
+  {
+    // When.
+    var result = await _sut.GetByPeriodFromFolder("Releases", TimeSpan.Zero);
+
+    // Then.
+    Assert.That(result, Is.Empty);
+  }
+
+  [Test]
+  public void GetByPeriodFromFolder_Throws_WhenFolderNameIsEmpty()
+  {
+    // When.
+    var act = () => _sut.GetByPeriodFromFolder(" ", TimeSpan.FromHours(1));
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<ArgumentException>());
+  }
+
+  [Test]
   public async Task GetPage_ReturnsRequestedSlice_InDescendingDateOrder()
   {
     // Given.
@@ -135,6 +183,44 @@ public class MailRepositoryTests
 
     // Then.
     Assert.That(result.Select(x => x.MessageId), Is.EqualTo(["message-2", "message-1"]));
+  }
+
+  [Test]
+  public async Task GetPage_UsesIdAsTieBreaker_WhenDatesAreEqual()
+  {
+    // Given.
+    var sameDateUtc = DateTimeOffset.Parse("2026-03-16T10:00:00Z");
+    _dbContext.Mails.AddRange(
+      new MailRecord(1, "Releases", "message-1", sameDateUtc, "a@example.com", "first", "raw-1", "md-1", "2026-03-16 08:00:00Z"),
+      new MailRecord(2, "Releases", "message-2", sameDateUtc, "b@example.com", "second", "raw-2", "md-2", "2026-03-16 10:00:00Z"));
+    await _dbContext.SaveChangesAsync();
+
+    // When.
+    var result = await _sut.GetPage(skip: 0, take: 2);
+
+    // Then.
+    Assert.That(result.Select(x => x.Id), Is.EqualTo([2, 1]));
+  }
+
+  [Test]
+  public void GetPage_Throws_WhenSkipIsNegative()
+  {
+    // When.
+    var act = () => _sut.GetPage(skip: -1, take: 10);
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<ArgumentOutOfRangeException>()
+      .With.Property(nameof(ArgumentOutOfRangeException.ParamName)).EqualTo("skip"));
+  }
+
+  [Test]
+  public async Task GetPage_ReturnsEmptyList_WhenTakeIsNotPositive()
+  {
+    // When.
+    var result = await _sut.GetPage(skip: 0, take: 0);
+
+    // Then.
+    Assert.That(result, Is.Empty);
   }
 
   [Test]
@@ -170,6 +256,16 @@ public class MailRepositoryTests
   }
 
   [Test]
+  public async Task GetExistingMessageIds_ReturnsEmptySet_WhenInputContainsOnlyEmptyValues()
+  {
+    // When.
+    var result = await _sut.GetExistingMessageIds([" ", "\t"]);
+
+    // Then.
+    Assert.That(result, Is.Empty);
+  }
+
+  [Test]
   public async Task GetLatestDateUtcByFolder_ReturnsLatestDateForFolder()
   {
     // Given.
@@ -184,6 +280,16 @@ public class MailRepositoryTests
 
     // Then.
     Assert.That(result, Is.EqualTo(DateTimeOffset.Parse("2026-03-16T10:00:00Z")));
+  }
+
+  [Test]
+  public void GetLatestDateUtcByFolder_Throws_WhenFolderNameIsEmpty()
+  {
+    // When.
+    var act = () => _sut.GetLatestDateUtcByFolder(" ");
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<ArgumentException>());
   }
 
   private DataContext CreateDataContext()

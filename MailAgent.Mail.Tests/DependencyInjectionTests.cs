@@ -40,6 +40,30 @@ public class DependencyInjectionTests
   }
 
   [Test]
+  public void AddImapMailClient_RegistersSingletonInstance()
+  {
+    // Given.
+    var services = new ServiceCollection();
+    var settings = new Imap.Settings
+    {
+      Username = _fixture.Create<string>(),
+      Password = _fixture.Create<string>(),
+      Host = "imap.example.com",
+      Port = 993,
+      Security = SecureSocketOptions.SslOnConnect
+    };
+
+    // When.
+    services.AddImapMailClient(settings);
+    using var serviceProvider = services.BuildServiceProvider();
+    var first = serviceProvider.GetRequiredService<IMailClient>();
+    var second = serviceProvider.GetRequiredService<IMailClient>();
+
+    // Then.
+    Assert.That(second, Is.SameAs(first));
+  }
+
+  [Test]
   public void AddEwsMailClient_RegistersEwsImplementation()
   {
     // Given.
@@ -59,6 +83,29 @@ public class DependencyInjectionTests
     // Then.
     var mailClient = serviceProvider.GetRequiredService<IMailClient>();
     Assert.That(mailClient, Is.TypeOf<Ews.MailClient>());
+  }
+
+  [Test]
+  public void AddEwsMailClient_RegistersSingletonInstance()
+  {
+    // Given.
+    var services = new ServiceCollection();
+    var settings = new Ews.Settings
+    {
+      Username = _fixture.Create<string>(),
+      Password = _fixture.Create<string>(),
+      Url = "https://mail.example.com/EWS/Exchange.asmx",
+      Domain = "EXAMPLE"
+    };
+
+    // When.
+    services.AddEwsMailClient(settings);
+    using var serviceProvider = services.BuildServiceProvider();
+    var first = serviceProvider.GetRequiredService<IMailClient>();
+    var second = serviceProvider.GetRequiredService<IMailClient>();
+
+    // Then.
+    Assert.That(second, Is.SameAs(first));
   }
 
   [Test]

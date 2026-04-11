@@ -59,6 +59,25 @@ public class SettingsTests
   }
 
   [Test]
+  public void AddValidatedConfiguration_Throws_WhenDatabaseConnectionStringIsMissing()
+  {
+    // Given.
+    var services = new ServiceCollection();
+    var configurationValues = CreateValidConfigurationValues();
+    configurationValues["ConnectionStrings:Database"] = null;
+    var configuration = BuildConfiguration(configurationValues);
+
+    // When.
+    services.AddValidatedConfiguration(configuration);
+    using var serviceProvider = services.BuildServiceProvider();
+    var act = () => serviceProvider.GetRequiredService<IOptions<ConnectionStringsConfiguration>>().Value;
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<OptionsValidationException>()
+      .With.Message.Contains("Database configuration is missing."));
+  }
+
+  [Test]
   public void AddValidatedConfiguration_AllowsDisabledMailImportWithoutSchedule()
   {
     // Given.
@@ -100,6 +119,29 @@ public class SettingsTests
     // Then.
     Assert.That(act, Throws.TypeOf<OptionsValidationException>()
       .With.Message.Contains("RunOnStartup configuration is missing."));
+  }
+
+  [Test]
+  public void AddValidatedConfiguration_Throws_WhenMailImportEnabledWithoutFolders()
+  {
+    // Given.
+    var services = new ServiceCollection();
+    var configurationValues = CreateValidConfigurationValues();
+    configurationValues["MailImport:Enabled"] = "true";
+    configurationValues["MailImport:RunOnStartup"] = "true";
+    configurationValues["MailImport:Interval"] = "01:00:00";
+    configurationValues["MailImport:InitialLookbackPeriod"] = "1.00:00:00";
+    configurationValues["MailImport:OverlapPeriod"] = "00:30:00";
+    var configuration = BuildConfiguration(configurationValues);
+
+    // When.
+    services.AddValidatedConfiguration(configuration);
+    using var serviceProvider = services.BuildServiceProvider();
+    var act = () => serviceProvider.GetRequiredService<MailImportBackgroundSettings>();
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<OptionsValidationException>()
+      .With.Message.Contains("Folders must contain at least one folder when Enabled is true."));
   }
 
   [Test]

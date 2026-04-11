@@ -33,6 +33,27 @@ public class DependencyInjectionTests
   }
 
   [Test]
+  public void AddConfiguredMailClient_RegistersEwsMailClient_WhenProviderIsEws()
+  {
+    // Given.
+    var services = new ServiceCollection();
+    var configurationValues = CreateValidConfigurationValues();
+    configurationValues["MailServer:Provider"] = nameof(MailProvider.Ews);
+    configurationValues["MailServer:Ews:Url"] = "https://ews.example.com/EWS/Exchange.asmx";
+    var configuration = BuildConfiguration(configurationValues);
+
+    // When.
+    services.AddValidatedConfiguration(configuration);
+    services.AddConfiguredMailClient();
+    using var serviceProvider = services.BuildServiceProvider();
+
+    // Then.
+    var mailClient = serviceProvider.GetService<IMailClient>();
+    Assert.That(mailClient, Is.Not.Null);
+    Assert.That(mailClient!.GetType().FullName, Is.EqualTo("MailAgent.Mail.Ews.MailClient"));
+  }
+
+  [Test]
   public void AddConfiguredMailClient_Throws_WhenProviderIsUnsupported()
   {
     // Given.

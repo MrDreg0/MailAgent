@@ -127,6 +127,13 @@ public class MailImportServiceTests
     Assert.That(savedCancellationToken, Is.EqualTo(cancellationToken));
     Assert.That(savedMails, Is.Not.Null);
     Assert.That(savedMails, Has.Count.EqualTo(1));
+    Assert.Multiple(() =>
+    {
+      Assert.That(result.IdentifiersFound, Is.EqualTo(2));
+      Assert.That(result.Loaded, Is.EqualTo(2));
+      Assert.That(result.SaveCandidates, Is.EqualTo(1));
+      Assert.That(result.AlreadyStored, Is.EqualTo(0));
+    });
 
     var storedMail = savedMails!.Single();
     Assert.Multiple(() =>
@@ -236,6 +243,13 @@ public class MailImportServiceTests
 
     // Then.
     Assert.That(result.Total, Is.EqualTo(0));
+    Assert.Multiple(() =>
+    {
+      Assert.That(result.IdentifiersFound, Is.EqualTo(1));
+      Assert.That(result.AlreadyStored, Is.EqualTo(1));
+      Assert.That(result.Loaded, Is.EqualTo(0));
+      Assert.That(result.SaveCandidates, Is.EqualTo(0));
+    });
     await _mailClient.DidNotReceive().GetMessagesByExternalIds(folderName, Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>());
     await _mailRepository.DidNotReceive().SaveNewAsync(Arg.Any<IReadOnlyCollection<StoredMail>>(), Arg.Any<CancellationToken>());
   }
@@ -272,6 +286,78 @@ public class MailImportServiceTests
     // Then.
     Assert.That(savedMails, Is.Not.Null);
     Assert.That(savedMails!.Select(mail => mail.MessageId), Is.EqualTo(new[] { "older-message-id", "newer-message-id" }));
+  }
+
+  [Test]
+  public void ImportFromDate_Throws_WhenFolderNameIsEmpty()
+  {
+    // When.
+    var act = () => _sut.ImportFromDate(" ", DateTimeOffset.UtcNow);
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<ArgumentException>());
+  }
+
+  [Test]
+  public async Task ImportFromDate_DeduplicatesIdentifiersByMessageId_BeforeLoadingMessages()
+  {
+    // Given.
+    var folderName = "Releases";
+    var fromUtc = DateTimeOffset.Parse("2026-03-16T10:00:00Z");
+    var firstIdentifier = new MailMessageIdentifier(
+      ExternalId: "external-id-1",
+      MessageId: "duplicate-message-id",
+      Subject: "Release 1",
+      From: "first@example.com",
+      DateUtc: DateTimeOffset.Parse("2026-03-16T10:00:00Z"));
+    var duplicateIdentifier = new MailMessageIdentifier(
+      ExternalId: "external-id-2",
+      MessageId: "duplicate-message-id",
+      Subject: "Release 1 duplicate",
+      From: "second@example.com",
+      DateUtc: DateTimeOffset.Parse("2026-03-16T10:05:00Z"));
+
+    _mailClient
+      .GetMessageIdentifiersFromFolderSince(folderName, fromUtc, Arg.Any<CancellationToken>())
+      .Returns([firstIdentifier, duplicateIdentifier]);
+
+    _mailRepository
+      .GetExistingMessageIds(
+        Arg.Is<IReadOnlyCollection<string>>(ids => ids.SequenceEqual(new[] { "duplicate-message-id" })),
+        Arg.Any<CancellationToken>())
+      .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+    var fetchedMessage = CreateMailMessage(
+      messageId: "duplicate-message-id",
+      htmlBody: "<p>release</p>",
+      textBody: null);
+
+    _mailClient
+      .GetMessagesByExternalIds(
+        folderName,
+        Arg.Is<IReadOnlyCollection<string>>(ids => ids.SequenceEqual(new[] { "external-id-1" })),
+        Arg.Any<CancellationToken>())
+      .Returns([fetchedMessage]);
+
+    // When.
+    var result = await _sut.ImportFromDate(folderName, fromUtc);
+
+    // Then.
+    await _mailRepository.Received(1).GetExistingMessageIds(
+      Arg.Is<IReadOnlyCollection<string>>(ids => ids.SequenceEqual(new[] { "duplicate-message-id" })),
+      Arg.Any<CancellationToken>());
+    await _mailClient.Received(1).GetMessagesByExternalIds(
+      folderName,
+      Arg.Is<IReadOnlyCollection<string>>(ids => ids.SequenceEqual(new[] { "external-id-1" })),
+      Arg.Any<CancellationToken>());
+
+    Assert.Multiple(() =>
+    {
+      Assert.That(result.IdentifiersFound, Is.EqualTo(2));
+      Assert.That(result.Loaded, Is.EqualTo(1));
+      Assert.That(result.SaveCandidates, Is.EqualTo(1));
+      Assert.That(result.Total, Is.EqualTo(1));
+    });
   }
 
   private MailMessage CreateMailMessage(

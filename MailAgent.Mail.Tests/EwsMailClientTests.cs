@@ -56,4 +56,34 @@ public class EwsMailClientTests
     // Then.
     Assert.That(act, Throws.InstanceOf<ArgumentException>());
   }
+
+  [Test]
+  public async Task GetMessagesByExternalIds_ReturnsEmptyList_WhenExternalIdsAreEmpty()
+  {
+    // When.
+    var result = await _sut.GetMessagesByExternalIds("Releases", []);
+
+    // Then.
+    Assert.That(result, Is.Empty);
+  }
+
+  [Test]
+  public void GetLatestFromInboxAsync_Throws_WhenEwsUrlIsMissing()
+  {
+    // Given.
+    var sut = new Ews.MailClient(new Ews.Settings
+    {
+      Username = _fixture.Create<string>(),
+      Password = _fixture.Create<string>(),
+      Url = " ",
+      Domain = "EXAMPLE",
+    });
+
+    // When.
+    var act = () => sut.GetLatestFromInboxAsync(1);
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<InvalidOperationException>()
+      .With.Message.Contains("EWS URL must be configured."));
+  }
 }

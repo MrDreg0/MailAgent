@@ -58,4 +58,14 @@ public class ImapMailClientTests
     // Then.
     Assert.That(act, Throws.InstanceOf<ArgumentException>());
   }
+
+  [Test]
+  public async Task GetMessagesByExternalIds_ReturnsEmptyList_WhenExternalIdsAreEmpty()
+  {
+    // When.
+    var result = await _sut.GetMessagesByExternalIds("Releases", []);
+
+    // Then.
+    Assert.That(result, Is.Empty);
+  }
 }

@@ -205,6 +205,74 @@ public class ReleaseDigestServiceTests
     });
   }
 
+  [Test]
+  public async Task BuildInboxDigestAsync_UsesProvidedCancellationToken_ForClassifierAndDigestRequests()
+  {
+    // Given.
+    var folderName = _fixture.Create<string>();
+    var period = _fixture.Create<TimeSpan>();
+    using var cancellationTokenSource = new CancellationTokenSource();
+    var cancellationToken = cancellationTokenSource.Token;
+    var storedMails = new[]
+    {
+      CreateStoredMail(subject: "Product release", markdownBody: "body")
+    };
+
+    _mailRepository
+      .GetByPeriodFromFolder(folderName, period, cancellationToken)
+      .Returns(storedMails);
+
+    _llmClient
+      .Generate(Arg.Any<LlmGenerateRequest>(), cancellationToken)
+      .Returns(
+        new LlmGenerateResponse("1"),
+        new LlmGenerateResponse("digest"));
+
+    // When.
+    await _sut.BuildInboxDigestAsync(folderName, period, cancellationToken);
+
+    // Then.
+    await _llmClient.Received(2).Generate(Arg.Any<LlmGenerateRequest>(), cancellationToken);
+  }
+
+  [Test]
+  public async Task BuildInboxDigestAsync_GeneratesDigestWithEmptySelection_WhenNoReleaseEmailsWereSelected()
+  {
+    // Given.
+    var folderName = _fixture.Create<string>();
+    var period = _fixture.Create<TimeSpan>();
+    var storedMails = new[]
+    {
+      CreateStoredMail(subject: "General update", markdownBody: "body")
+    };
+
+    _mailRepository
+      .GetByPeriodFromFolder(folderName, period, Arg.Any<CancellationToken>())
+      .Returns(storedMails);
+
+    var requests = new List<LlmGenerateRequest>();
+
+    _llmClient
+      .Generate(Arg.Do<LlmGenerateRequest>(request => requests.Add(request)), Arg.Any<CancellationToken>())
+      .Returns(
+        new LlmGenerateResponse(string.Empty),
+        new LlmGenerateResponse("empty digest"));
+
+    // When.
+    var result = await _sut.BuildInboxDigestAsync(folderName, period);
+
+    // Then.
+    Assert.Multiple(() =>
+    {
+      Assert.That(result.TotalFetched, Is.EqualTo(1));
+      Assert.That(result.Selected, Is.EqualTo(0));
+      Assert.That(result.Digest, Is.EqualTo("empty digest"));
+      Assert.That(requests, Has.Count.EqualTo(2));
+      Assert.That(requests[1].Prompt, Does.Contain("Письма:"));
+      Assert.That(requests[1].Prompt, Does.Not.Contain("Subject:"));
+    });
+  }
+
   private StoredMail CreateStoredMail(
     string? subject = null,
     string? markdownBody = null)
