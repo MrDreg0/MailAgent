@@ -8,10 +8,10 @@
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Database: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       
-      Llm__Provider: ollama
-      Llm__BaseUrl: http://host.docker.internal:11434/
-      Llm__FastModel: llama3.2:3b
-      Llm__MainModel: qwen2.5:7b-instruct
+      Llm__Provider: "lmstudio"
+      Llm__BaseUrl: "http://host.docker.internal:1234"
+      Llm__FastModel: "qwen/qwen3-4b-2507"
+      Llm__MainModel: "qwen3.5-9b"
       
       MailImport__Enabled: "true"
       MailImport__Folders__0: "Releases"
