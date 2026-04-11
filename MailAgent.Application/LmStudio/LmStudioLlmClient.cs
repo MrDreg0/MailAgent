@@ -1,7 +1,7 @@
 using MailAgent.Application.Contracts.Llm;
 using MailAgent.Application.Llm;
 using Microsoft.Extensions.Logging;
-using Refit;
+
 namespace MailAgent.Application.LmStudio;
 
 internal sealed class LmStudioLlmClient(
@@ -12,32 +12,28 @@ internal sealed class LmStudioLlmClient(
 
   public async Task<LlmGenerateResponse> Generate(LlmGenerateRequest request, CancellationToken cancellationToken)
   {
-    LmStudioChatCompletionResponse response;
+    using var response = await lmStudioApi.CreateChatCompletion(
+      new LmStudioChatCompletionRequest(
+        request.Model,
+        [new LmStudioChatMessage("user", request.Prompt)],
+        Stream: false,
+        Ttl: IdleTtlSeconds),
+      cancellationToken);
 
-    try
-    {
-      response = await lmStudioApi.CreateChatCompletion(
-        new LmStudioChatCompletionRequest(
-          request.Model,
-          [new LmStudioChatMessage("user", request.Prompt)],
-          Stream: false,
-          Ttl: IdleTtlSeconds),
-        cancellationToken);
-    }
-    catch (ApiException exception)
+    if (!response.IsSuccessful)
     {
       logger.LogError(
-        exception,
+        response.Error,
         "LM Studio request failed. StatusCode: {StatusCode}. Model: {Model}. Prompt length: {PromptLength}. Response: {Response}",
-        (int)exception.StatusCode,
+        response.StatusCode,
         request.Model,
         request.Prompt.Length,
-        exception.Content);
+        response.Error?.Content);
 
-      throw;
+      await response.EnsureSuccessfulAsync();
     }
 
-    var content = response.Choices.FirstOrDefault()?.Message.Content ?? string.Empty;
+    var content = response.Content?.Choices.FirstOrDefault()?.Message.Content ?? string.Empty;
 
     return new LlmGenerateResponse(content);
   }

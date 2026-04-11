@@ -1,7 +1,9 @@
+using System.Net;
 using System.Text.Json;
 using MailAgent.Application.Llm;
 using MailAgent.Application.LmStudio;
 using Microsoft.Extensions.Logging.Abstractions;
+using Refit;
 
 namespace MailAgent.Application.Tests;
 
@@ -14,9 +16,9 @@ public class LmStudioLlmClientTests
     // Given.
     using var cancellationTokenSource = new CancellationTokenSource();
     var cancellationToken = cancellationTokenSource.Token;
-    var api = new FakeLmStudioApi(new LmStudioChatCompletionResponse([
+    var api = new FakeLmStudioApi(CreateSuccessResponse(new LmStudioChatCompletionResponse([
       new LmStudioChatCompletionChoice(new LmStudioChatMessage("assistant", " result text ")),
-    ]));
+    ])));
     var sut = new LmStudioLlmClient(api, NullLogger<LmStudioLlmClient>.Instance);
 
     // When.
@@ -62,12 +64,26 @@ public class LmStudioLlmClientTests
     });
   }
 
-  private sealed class FakeLmStudioApi(LmStudioChatCompletionResponse response) : ILmStudioApi
+  [Test]
+  public void Generate_ThrowsApiException_WhenLmStudioReturnsUnsuccessfulResponse()
+  {
+    // Given.
+    var api = new FakeLmStudioApi(CreateFailureResponse(HttpStatusCode.BadRequest, "bad request"));
+    var sut = new LmStudioLlmClient(api, NullLogger<LmStudioLlmClient>.Instance);
+
+    // When.
+    var act = async () => await sut.Generate(new LlmGenerateRequest("local-model", "prompt text"), CancellationToken.None);
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<ApiException>());
+  }
+
+  private sealed class FakeLmStudioApi(ApiResponse<LmStudioChatCompletionResponse> response) : ILmStudioApi
   {
     public LmStudioChatCompletionRequest? Request { get; private set; }
     public CancellationToken CancellationToken { get; private set; }
 
-    public Task<LmStudioChatCompletionResponse> CreateChatCompletion(
+    public Task<ApiResponse<LmStudioChatCompletionResponse>> CreateChatCompletion(
       LmStudioChatCompletionRequest request,
       CancellationToken cancellationToken)
     {
@@ -76,5 +92,30 @@ public class LmStudioLlmClientTests
 
       return Task.FromResult(response);
     }
+  }
+
+  private static ApiResponse<LmStudioChatCompletionResponse> CreateSuccessResponse(LmStudioChatCompletionResponse content)
+  {
+    var httpResponse = new HttpResponseMessage(HttpStatusCode.OK)
+    {
+      RequestMessage = new HttpRequestMessage(HttpMethod.Post, "http://localhost/v1/chat/completions"),
+    };
+
+    return new ApiResponse<LmStudioChatCompletionResponse>(httpResponse, content, new RefitSettings(), null);
+  }
+
+  private static ApiResponse<LmStudioChatCompletionResponse> CreateFailureResponse(HttpStatusCode statusCode, string responseContent)
+  {
+    var requestMessage = new HttpRequestMessage(HttpMethod.Post, "http://localhost/v1/chat/completions");
+    var httpResponse = new HttpResponseMessage(statusCode)
+    {
+      RequestMessage = requestMessage,
+      Content = new StringContent(responseContent),
+    };
+    var error = ApiException.Create(requestMessage, HttpMethod.Post, httpResponse, new RefitSettings(), null)
+      .GetAwaiter()
+      .GetResult();
+
+    return new ApiResponse<LmStudioChatCompletionResponse>(httpResponse, default, new RefitSettings(), error);
   }
 }
