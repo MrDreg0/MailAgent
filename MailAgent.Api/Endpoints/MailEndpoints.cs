@@ -1,4 +1,5 @@
 using MailAgent.Api.Models;
+using MailAgent.Api.Contracts.DailyDigests;
 using MailAgent.Application.Contracts.Digest;
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Digest;
@@ -15,6 +16,7 @@ public static class MailEndpoints
     endpoints.MapGet("/digest", GetDigest);
     endpoints.MapGet("/daily-digests", GetDailyDigests);
     endpoints.MapGet("/daily-digests/{digestDate}", GetDailyDigestByDate);
+    endpoints.MapPost("/daily-digests/{digestDate}/regenerate", RegenerateDailyDigest);
   }
 
   private static async Task<IResult> GetFolders(IMailClient mailClient, CancellationToken cancellationToken)
@@ -75,6 +77,28 @@ public static class MailEndpoints
     CancellationToken cancellationToken)
   {
     var digest = await dailyDigestRepository.GetByDate(folder, digestDate, cancellationToken);
-    return digest is null ? Results.NotFound() : Results.Ok(digest);
+    return digest is null ? Results.NotFound() : Results.Ok(ToDocumentResponse(digest));
+  }
+
+  private static async Task<IResult> RegenerateDailyDigest(
+    DateOnly digestDate,
+    string folder,
+    DailyDigestGenerationService dailyDigestGenerationService,
+    CancellationToken cancellationToken)
+  {
+    var digest = await dailyDigestGenerationService.Regenerate(folder, digestDate, cancellationToken);
+    return Results.Ok(ToDocumentResponse(digest));
+  }
+
+  private static DailyDigestDocumentResponse ToDocumentResponse(Application.Contracts.Digest.Models.DailyDigest digest)
+  {
+    return new DailyDigestDocumentResponse(
+      digest.Id,
+      digest.Folder,
+      digest.DigestDate,
+      digest.TotalFetched,
+      digest.Selected,
+      digest.DigestMarkdown,
+      digest.GeneratedAtUtc);
   }
 }

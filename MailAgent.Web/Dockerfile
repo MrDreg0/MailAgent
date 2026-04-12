@@ -5,6 +5,7 @@ COPY MailAgent.Web/MailAgent.Web.csproj MailAgent.Web/
 COPY MailAgent.Application/MailAgent.Application.csproj MailAgent.Application/
 COPY MailAgent.Database/MailAgent.Database.csproj MailAgent.Database/
 COPY MailAgent.Database.PostgreSql/MailAgent.Database.PostgreSql.csproj MailAgent.Database.PostgreSql/
+COPY MailAgent.Api.Contracts/MailAgent.Api.Contracts.csproj MailAgent.Api.Contracts/
 
 RUN dotnet restore MailAgent.Web/MailAgent.Web.csproj
 
@@ -12,6 +13,7 @@ COPY MailAgent.Web/ MailAgent.Web/
 COPY MailAgent.Application/ MailAgent.Application/
 COPY MailAgent.Database/ MailAgent.Database/
 COPY MailAgent.Database.PostgreSql/ MailAgent.Database.PostgreSql/
+COPY MailAgent.Api.Contracts/ MailAgent.Api.Contracts/
 
 RUN dotnet publish MailAgent.Web/MailAgent.Web.csproj -c Release -o /app/publish /p:UseAppHost=false
 

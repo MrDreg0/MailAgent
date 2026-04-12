@@ -11,6 +11,10 @@ internal static class DependencyInjection
       services,
       options => options.Bind(configuration.GetSection("ConnectionStrings")));
 
+    AddValidatedOptions<MailAgentApiConfiguration, MailAgentApiConfigurationValidator>(
+      services,
+      options => options.Bind(configuration.GetSection("MailAgentApi")));
+
     AddValidatedOptions<WebHostConfiguration, WebHostConfigurationValidator>(
       services,
       options => options.Bind(configuration));

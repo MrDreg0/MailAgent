@@ -20,12 +20,15 @@ public class SettingsTests
     services.AddValidatedConfiguration(configuration);
     using var serviceProvider = services.BuildServiceProvider();
     var connectionStrings = serviceProvider.GetRequiredService<IOptions<ConnectionStringsConfiguration>>().Value;
+    var mailAgentApi = serviceProvider.GetRequiredService<IOptions<MailAgentApiConfiguration>>().Value;
     var webHost = serviceProvider.GetRequiredService<IOptions<WebHostConfiguration>>().Value;
 
     // Then.
     Assert.Multiple(() =>
     {
       Assert.That(connectionStrings.Database, Is.EqualTo("Host=localhost;Database=mailagent;Username=postgres;Password=postgres"));
+      Assert.That(mailAgentApi.BaseUrl, Is.EqualTo("http://localhost:8080"));
+      Assert.That(mailAgentApi.TimeoutMinutes, Is.EqualTo(10));
       Assert.That(webHost.UseHttpsRedirection, Is.EqualTo("false"));
     });
   }
@@ -69,6 +72,25 @@ public class SettingsTests
   }
 
   [Test]
+  public void AddValidatedConfiguration_Throws_WhenMailAgentApiBaseUrlIsMissing()
+  {
+    // Given.
+    var services = new ServiceCollection();
+    var configurationValues = CreateValidConfigurationValues();
+    configurationValues["MailAgentApi:BaseUrl"] = null;
+    var configuration = BuildConfiguration(configurationValues);
+
+    // When.
+    services.AddValidatedConfiguration(configuration);
+    using var serviceProvider = services.BuildServiceProvider();
+    var act = () => serviceProvider.GetRequiredService<IOptions<MailAgentApiConfiguration>>().Value;
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<OptionsValidationException>()
+      .With.Message.Contains("BaseUrl configuration is missing."));
+  }
+
+  [Test]
   public void AddPostgreSqlDataContext_ResolvesDbContext_WhenConnectionStringComesFromValidatedConfiguration()
   {
     // Given.
@@ -98,6 +120,8 @@ public class SettingsTests
     return new Dictionary<string, string?>
     {
       ["ConnectionStrings:Database"] = "Host=localhost;Database=mailagent;Username=postgres;Password=postgres",
+      ["MailAgentApi:BaseUrl"] = "http://localhost:8080",
+      ["MailAgentApi:TimeoutMinutes"] = "10",
       ["UseHttpsRedirection"] = "false",
     };
   }

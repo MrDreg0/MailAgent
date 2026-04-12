@@ -14,6 +14,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\MailAgent.Api.Contracts\MailAgent.Api.Contracts.csproj" />
       <ProjectReference Include="..\MailAgent.Application\MailAgent.Application.csproj" />
       <ProjectReference Include="..\MailAgent.Database.PostgreSql\MailAgent.Database.PostgreSql.csproj" />
       <ProjectReference Include="..\MailAgent.Mail\MailAgent.Mail.csproj" />

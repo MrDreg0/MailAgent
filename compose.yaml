@@ -38,6 +38,8 @@
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       UseHttpsRedirection: "false"
+      MailAgentApi__BaseUrl: http://mailagent-api:8080
+      MailAgentApi__TimeoutMinutes: "10"
       ConnectionStrings__Database: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
     depends_on:
       - postgres

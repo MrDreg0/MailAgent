@@ -33,6 +33,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MailAgent.Web", "MailAgent.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MailAgent.Web.Tests", "MailAgent.Web.Tests\MailAgent.Web.Tests.csproj", "{956F0C42-053D-4B91-95F3-8DE230111E76}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MailAgent.Api.Contracts", "MailAgent.Api.Contracts\MailAgent.Api.Contracts.csproj", "{FB778EC2-0FD6-4C80-822D-548B27CAE1EB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -175,6 +177,18 @@ Global
 		{956F0C42-053D-4B91-95F3-8DE230111E76}.Release|x64.Build.0 = Release|Any CPU
 		{956F0C42-053D-4B91-95F3-8DE230111E76}.Release|x86.ActiveCfg = Release|Any CPU
 		{956F0C42-053D-4B91-95F3-8DE230111E76}.Release|x86.Build.0 = Release|Any CPU
+		{FB778EC2-0FD6-4C80-822D-548B27CAE1EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FB778EC2-0FD6-4C80-822D-548B27CAE1EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FB778EC2-0FD6-4C80-822D-548B27CAE1EB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FB778EC2-0FD6-4C80-822D-548B27CAE1EB}.Debug|x64.Build.0 = Debug|Any CPU
+		{FB778EC2-0FD6-4C80-822D-548B27CAE1EB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FB778EC2-0FD6-4C80-822D-548B27CAE1EB}.Debug|x86.Build.0 = Debug|Any CPU
+		{FB778EC2-0FD6-4C80-822D-548B27CAE1EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FB778EC2-0FD6-4C80-822D-548B27CAE1EB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FB778EC2-0FD6-4C80-822D-548B27CAE1EB}.Release|x64.ActiveCfg = Release|Any CPU
+		{FB778EC2-0FD6-4C80-822D-548B27CAE1EB}.Release|x64.Build.0 = Release|Any CPU
+		{FB778EC2-0FD6-4C80-822D-548B27CAE1EB}.Release|x86.ActiveCfg = Release|Any CPU
+		{FB778EC2-0FD6-4C80-822D-548B27CAE1EB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

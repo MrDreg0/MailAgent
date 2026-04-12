@@ -1,6 +1,9 @@
 @page "/daily-digests"
+@using MailAgent.Api.Contracts
+@using MailAgent.Api.Contracts.DailyDigests
 @using MailAgent.Web.Browse
 @inject DailyDigestBrowserService DailyDigestBrowserService
+@inject IMailAgentApi MailAgentApi
 
 <PageTitle>Daily Digests</PageTitle>
 
@@ -15,6 +18,17 @@
     <Alert Color="AlertColor.Danger">
       <Icon Name="IconName.ExclamationTriangleFill" class="me-2"></Icon>
       @_errorMessage
+    </Alert>
+  }
+
+  @if (!string.IsNullOrEmpty(_successMessage))
+  {
+    <Alert Color="AlertColor.Success"
+           Dismissable="true"
+           Visible="@_isSuccessMessageVisible"
+           OnClosed="HideSuccessMessage">
+      <Icon Name="IconName.CheckCircleFill" class="me-2"></Icon>
+      @_successMessage
     </Alert>
   }
 
@@ -43,37 +57,63 @@
             AllowDetailView="true">
         <GridColumns>
           <GridColumn TItem="DailyDigest" HeaderText="Date">
-            @context.DigestDate.ToString("yyyy-MM-dd")
+            @{
+              var digest = GetVisibleDigest(context);
+            }
+            @digest.DigestDate.ToString("yyyy-MM-dd")
           </GridColumn>
           <GridColumn TItem="DailyDigest" HeaderText="Folder">
-            @context.Folder
+            @GetVisibleDigest(context).Folder
           </GridColumn>
           <GridColumn TItem="DailyDigest" HeaderText="Fetched">
-            @context.TotalFetched
+            @GetVisibleDigest(context).TotalFetched
           </GridColumn>
           <GridColumn TItem="DailyDigest" HeaderText="Selected">
-            @context.Selected
+            @GetVisibleDigest(context).Selected
           </GridColumn>
           <GridColumn TItem="DailyDigest" HeaderText="Generated">
-            @context.GeneratedAtUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'")
+            @GetVisibleDigest(context).GeneratedAtUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'")
           </GridColumn>
         </GridColumns>
 
         <GridDetailView TItem="DailyDigest">
+          @{
+            var digest = GetVisibleDigest(context);
+          }
           <Card class="mt-4 digest-detail-card">
             <CardHeader>
               <div class="d-flex flex-column gap-2">
-                <div class="fw-semibold">Release Digest for @context.DigestDate.ToString("yyyy-MM-dd")</div>
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                  <div class="fw-semibold">Release Digest for @digest.DigestDate.ToString("yyyy-MM-dd")</div>
+                  <Button Color="@(IsRegenerating(digest) ? ButtonColor.Secondary : ButtonColor.Primary)"
+                          Size="ButtonSize.Small"
+                          Loading="@IsRegenerating(digest)"
+                          LoadingText="Regenerating..."
+                          Disabled="@IsRegenerating(digest)"
+                          @onclick="async () => await RegenerateDigest(digest)">
+                    <span>Regenerate</span>
+                  </Button>
+                </div>
                 <div class="d-flex flex-wrap gap-2 digest-metadata">
-                  <Badge Color="BadgeColor.Secondary">Folder: @context.Folder</Badge>
-                  <Badge Color="BadgeColor.Light">Fetched: @context.TotalFetched</Badge>
-                  <Badge Color="BadgeColor.Light">Selected: @context.Selected</Badge>
-                  <Badge Color="BadgeColor.Light">Generated: @context.GeneratedAtUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'")</Badge>
+                  <Badge Color="BadgeColor.Secondary">Folder: @digest.Folder</Badge>
+                  <Badge Color="BadgeColor.Light">Fetched: @digest.TotalFetched</Badge>
+                  <Badge Color="BadgeColor.Light">Selected: @digest.Selected</Badge>
+                  <Badge Color="BadgeColor.Light">Generated: @digest.GeneratedAtUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'")</Badge>
                 </div>
               </div>
             </CardHeader>
             <CardBody>
-              <DailyDigestDocument Content="@context.DigestMarkdown" />
+              @if (IsRegenerating(digest))
+              {
+                <div class="digest-loading-state">
+                  <div class="digest-loading-dots">...</div>
+                  <div class="text-body-secondary">Regenerating digest...</div>
+                </div>
+              }
+              else
+              {
+                <DailyDigestDocument Content="@digest.DigestMarkdown" />
+              }
             </CardBody>
           </Card>
         </GridDetailView>
@@ -86,8 +126,12 @@
   private const string FolderName = "Releases";
   private static readonly int[] PageSizeOptions = [10, 25, 100];
 
+  private readonly HashSet<string> _regeneratingDigestKeys = [];
+  private readonly Dictionary<string, DailyDigest> _updatedDigests = [];
   private bool _isLoading = true;
+  private bool _isSuccessMessageVisible;
   private string? _errorMessage;
+  private string? _successMessage;
 
   private async Task<GridDataProviderResult<DailyDigest>> DailyDigestsDataProvider(GridDataProviderRequest<DailyDigest> request)
   {
@@ -118,5 +162,69 @@
       _isLoading = false;
       await InvokeAsync(StateHasChanged);
     }
+  }
+
+  private async Task RegenerateDigest(DailyDigest digest)
+  {
+    var digestKey = GetDigestKey(digest);
+
+    if (!_regeneratingDigestKeys.Add(digestKey))
+    {
+      return;
+    }
+
+    _errorMessage = null;
+    _successMessage = null;
+
+    try
+    {
+      var regeneratedDigest = await MailAgentApi.RegenerateDailyDigest(digest.DigestDate.ToString("yyyy-MM-dd"), digest.Folder);
+      _updatedDigests[digestKey] = ToDailyDigest(regeneratedDigest);
+      _successMessage = $"Daily digest for {digest.DigestDate:yyyy-MM-dd} was regenerated.";
+      _isSuccessMessageVisible = true;
+    }
+    catch (Exception exception)
+    {
+      _errorMessage = $"Failed to regenerate daily digest: {exception.Message}";
+    }
+    finally
+    {
+      _regeneratingDigestKeys.Remove(digestKey);
+      await InvokeAsync(StateHasChanged);
+    }
+  }
+
+  private bool IsRegenerating(DailyDigest digest)
+  {
+    return _regeneratingDigestKeys.Contains(GetDigestKey(digest));
+  }
+
+  private DailyDigest GetVisibleDigest(DailyDigest digest)
+  {
+    var digestKey = GetDigestKey(digest);
+    return _updatedDigests.GetValueOrDefault(digestKey) ?? digest;
+  }
+
+  private Task HideSuccessMessage()
+  {
+    _isSuccessMessageVisible = false;
+    return Task.CompletedTask;
+  }
+
+  private static DailyDigest ToDailyDigest(DailyDigestDocumentResponse digest)
+  {
+    return new DailyDigest(
+      digest.Id,
+      digest.Folder,
+      digest.DigestDate,
+      digest.TotalFetched,
+      digest.Selected,
+      digest.DigestMarkdown,
+      digest.GeneratedAtUtc);
+  }
+
+  private static string GetDigestKey(DailyDigest digest)
+  {
+    return $"{digest.Folder}:{digest.DigestDate:yyyy-MM-dd}";
   }
 }

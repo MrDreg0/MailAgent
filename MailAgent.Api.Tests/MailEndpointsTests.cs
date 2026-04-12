@@ -206,6 +206,60 @@ public class MailEndpointsTests
     });
   }
 
+  [Test]
+  public async Task RegenerateDailyDigest_RebuildsAndReturnsUpdatedDigest()
+  {
+    // Given.
+    _mailRepository
+      .GetByUtcRangeFromFolder(
+        "Releases",
+        DateTimeOffset.Parse("2026-04-10T00:00:00Z"),
+        DateTimeOffset.Parse("2026-04-11T00:00:00Z"),
+        Arg.Any<CancellationToken>())
+      .Returns([
+        new StoredMail(
+          1,
+          "Releases",
+          "message-id",
+          DateTimeOffset.Parse("2026-04-10T10:00:00Z"),
+          "from@example.com",
+          "Service release",
+          "raw",
+          "release body",
+          "2026-04-10 10:00:00Z")
+      ]);
+
+    _llmClient
+      .Generate(Arg.Any<LlmGenerateRequest>(), Arg.Any<CancellationToken>())
+      .Returns(
+        new LlmGenerateResponse("1"),
+        new LlmGenerateResponse("# Regenerated digest"));
+
+    using var client = await CreateClientAsync();
+
+    // When.
+    var response = await client.PostAsync("/daily-digests/2026-04-10/regenerate?folder=Releases", content: null);
+
+    // Then.
+    Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+    await _dailyDigestRepository.Received(1).Save(
+      Arg.Is<DailyDigest>(digest =>
+        digest.Folder == "Releases" &&
+        digest.DigestDate == new DateOnly(2026, 4, 10) &&
+        digest.Selected == 1 &&
+        digest.DigestMarkdown == "# Regenerated digest"),
+      Arg.Any<CancellationToken>());
+
+    var payload = JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
+    Assert.Multiple(() =>
+    {
+      Assert.That(payload["folder"]!.GetValue<string>(), Is.EqualTo("Releases"));
+      Assert.That(payload["digestDate"]!.GetValue<string>(), Is.EqualTo("2026-04-10"));
+      Assert.That(payload["digestMarkdown"]!.GetValue<string>(), Is.EqualTo("# Regenerated digest"));
+    });
+  }
+
   private async Task<HttpClient> CreateClientAsync()
   {
     var builder = WebApplication.CreateBuilder();
@@ -225,6 +279,8 @@ public class MailEndpointsTests
     });
     builder.Services.AddSingleton<EmailBodyConverter>();
     builder.Services.AddScoped<MailImportService>();
+    builder.Services.AddScoped<DailyDigestService>();
+    builder.Services.AddScoped<DailyDigestGenerationService>();
     builder.Services.AddScoped<ReleaseDigestService>();
 
     var app = builder.Build();

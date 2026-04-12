@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\MailAgent.Api.Contracts\MailAgent.Api.Contracts.csproj" />
     <ProjectReference Include="..\MailAgent.Application\MailAgent.Application.csproj" />
     <ProjectReference Include="..\MailAgent.Database.PostgreSql\MailAgent.Database.PostgreSql.csproj" />
   </ItemGroup>
@@ -15,6 +16,7 @@
   <ItemGroup>
     <PackageReference Include="Blazor.Bootstrap" Version="3.5.0" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="Refit.HttpClientFactory" Version="10.0.1" />
   </ItemGroup>
 
 </Project>

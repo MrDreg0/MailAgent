@@ -30,24 +30,7 @@ public sealed class DailyDigestGenerationService(
 
     try
     {
-      var buildResult = await dailyDigestService.BuildForDate(folderName, digestDate, cancellationToken);
-      var storedDigest = new DailyDigest(
-        Id: 0,
-        Folder: buildResult.Folder,
-        DigestDate: buildResult.DigestDate,
-        TotalFetched: buildResult.TotalFetched,
-        Selected: buildResult.Selected,
-        DigestMarkdown: buildResult.DigestMarkdown,
-        GeneratedAtUtc: DateTimeOffset.UtcNow);
-
-      await dailyDigestRepository.Save(storedDigest, cancellationToken);
-
-      logger.LogInformation(
-        "Daily digest stored. Folder={Folder}, DigestDate={DigestDate}, TotalFetched={TotalFetched}, Selected={Selected}.",
-        buildResult.Folder,
-        buildResult.DigestDate,
-        buildResult.TotalFetched,
-        buildResult.Selected);
+      await BuildAndSave(folderName, digestDate, cancellationToken);
 
       return true;
     }
@@ -65,5 +48,64 @@ public sealed class DailyDigestGenerationService(
 
       throw;
     }
+  }
+
+  public async Task<DailyDigest> Regenerate(
+    string folderName,
+    DateOnly digestDate,
+    CancellationToken cancellationToken = default)
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
+
+    try
+    {
+      logger.LogInformation(
+        "Force regenerating daily digest. Folder={Folder}, DigestDate={DigestDate}.",
+        folderName,
+        digestDate);
+
+      return await BuildAndSave(folderName, digestDate, cancellationToken);
+    }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    {
+      throw;
+    }
+    catch (Exception exception)
+    {
+      logger.LogError(
+        exception,
+        "Daily digest regeneration failed. Folder={Folder}, DigestDate={DigestDate}.",
+        folderName,
+        digestDate);
+
+      throw;
+    }
+  }
+
+  private async Task<DailyDigest> BuildAndSave(
+    string folderName,
+    DateOnly digestDate,
+    CancellationToken cancellationToken)
+  {
+    var buildResult = await dailyDigestService.BuildForDate(folderName, digestDate, cancellationToken);
+    var storedDigest = new DailyDigest(
+      Id: 0,
+      Folder: buildResult.Folder,
+      DigestDate: buildResult.DigestDate,
+      TotalFetched: buildResult.TotalFetched,
+      Selected: buildResult.Selected,
+      DigestMarkdown: buildResult.DigestMarkdown,
+      GeneratedAtUtc: DateTimeOffset.UtcNow);
+
+    await dailyDigestRepository.Save(storedDigest, cancellationToken);
+
+    logger.LogInformation(
+      "Daily digest stored. Folder={Folder}, DigestDate={DigestDate}, TotalFetched={TotalFetched}, Selected={Selected}.",
+      buildResult.Folder,
+      buildResult.DigestDate,
+      buildResult.TotalFetched,
+      buildResult.Selected);
+
+    return storedDigest;
   }
 }
