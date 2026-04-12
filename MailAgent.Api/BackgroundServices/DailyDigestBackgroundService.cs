@@ -17,7 +17,7 @@ internal sealed class DailyDigestBackgroundService(
 
     if (settings.RunOnStartup == true)
     {
-      await RunGenerationCycle(stoppingToken);
+      await RunInitialBackfill(stoppingToken);
     }
 
     while (!stoppingToken.IsCancellationRequested)
@@ -37,6 +37,30 @@ internal sealed class DailyDigestBackgroundService(
       : interval;
   }
 
+  internal static IReadOnlyList<DateOnly> GetInitialBackfillDates(DateOnly utcToday, TimeSpan initialBackfillPeriod)
+  {
+    var backfillDays = Math.Max(1, (int)Math.Ceiling(initialBackfillPeriod.TotalDays));
+    var dates = new List<DateOnly>(capacity: backfillDays);
+
+    for (var offset = backfillDays; offset >= 1; offset--)
+    {
+      dates.Add(utcToday.AddDays(-offset));
+    }
+
+    return dates;
+  }
+
+  private async Task RunInitialBackfill(CancellationToken cancellationToken)
+  {
+    var utcToday = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+    var digestDates = GetInitialBackfillDates(utcToday, settings.InitialBackfillPeriod!.Value);
+
+    foreach (var digestDate in digestDates)
+    {
+      await GenerateDigest(digestDate, cancellationToken);
+    }
+  }
+
   private async Task RunGenerationCycle(CancellationToken cancellationToken)
   {
     var utcNow = DateTimeOffset.UtcNow;
@@ -52,6 +76,11 @@ internal sealed class DailyDigestBackgroundService(
 
     var digestDate = DateOnly.FromDateTime(utcNow.UtcDateTime.Date.AddDays(-1));
 
+    await GenerateDigest(digestDate, cancellationToken);
+  }
+
+  private async Task GenerateDigest(DateOnly digestDate, CancellationToken cancellationToken)
+  {
     try
     {
       using var scope = serviceScopeFactory.CreateScope();

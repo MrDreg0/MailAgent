@@ -41,6 +41,7 @@ public class SettingsTests
       Assert.That(dailyDigestSettings.RunOnStartup, Is.Null);
       Assert.That(dailyDigestSettings.Interval, Is.Null);
       Assert.That(dailyDigestSettings.Folder, Is.Null);
+      Assert.That(dailyDigestSettings.InitialBackfillPeriod, Is.Null);
     });
   }
 
@@ -159,6 +160,7 @@ public class SettingsTests
     configurationValues["DailyDigest:RunOnStartup"] = "true";
     configurationValues["DailyDigest:Interval"] = "01:00:00";
     configurationValues["DailyDigest:GenerateAfter"] = "08:00:00";
+    configurationValues["DailyDigest:InitialBackfillPeriod"] = "7.00:00:00";
     var configuration = BuildConfiguration(configurationValues);
 
     // When.
@@ -220,6 +222,7 @@ public class SettingsTests
       ["DailyDigest:RunOnStartup"] = null,
       ["DailyDigest:Interval"] = null,
       ["DailyDigest:Folder"] = null,
+      ["DailyDigest:InitialBackfillPeriod"] = null,
       ["DailyDigest:GenerateAfter"] = null,
     };
   }

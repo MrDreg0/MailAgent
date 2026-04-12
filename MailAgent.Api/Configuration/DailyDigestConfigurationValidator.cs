@@ -40,6 +40,16 @@ internal sealed class DailyDigestConfigurationValidator : AbstractValidator<Dail
         .WithName(nameof(DailyDigestConfiguration.Folder))
         .WithMessage("{PropertyName} configuration is missing.");
 
+      RuleFor(configuration => configuration.InitialBackfillPeriod)
+        .Cascade(CascadeMode.Stop)
+        .NotEmpty()
+        .WithName(nameof(DailyDigestConfiguration.InitialBackfillPeriod))
+        .WithMessage("{PropertyName} configuration is missing.")
+        .Must(ConfigurationValuePredicates.IsTimeSpan)
+        .WithMessage("{PropertyName} must be a valid TimeSpan.")
+        .Must(ConfigurationValuePredicates.IsPositiveTimeSpan)
+        .WithMessage("{PropertyName} must be greater than zero.");
+
       RuleFor(configuration => configuration.GenerateAfter)
         .Cascade(CascadeMode.Stop)
         .NotEmpty()

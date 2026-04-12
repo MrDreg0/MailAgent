@@ -5,4 +5,5 @@ internal sealed record DailyDigestBackgroundSettings(
   bool? RunOnStartup,
   TimeSpan? Interval,
   string? Folder,
+  TimeSpan? InitialBackfillPeriod,
   TimeOnly? GenerateAfter);

@@ -15,6 +15,24 @@ namespace MailAgent.Api.Tests;
 public class DailyDigestBackgroundServiceTests
 {
   [Test]
+  public void GetInitialBackfillDates_ReturnsCompletedUtcDaysInsideBackfillWindow()
+  {
+    // Given.
+    var utcToday = new DateOnly(2026, 4, 12);
+
+    // When.
+    var result = DailyDigestBackgroundService.GetInitialBackfillDates(utcToday, TimeSpan.FromDays(3));
+
+    // Then.
+    Assert.That(result, Is.EqualTo(new[]
+    {
+      new DateOnly(2026, 4, 9),
+      new DateOnly(2026, 4, 10),
+      new DateOnly(2026, 4, 11)
+    }));
+  }
+
+  [Test]
   public void GetDelayUntilNextCheck_ReturnsThresholdDelay_WhenThresholdIsSoonerThanInterval()
   {
     // Given.
@@ -39,6 +57,7 @@ public class DailyDigestBackgroundServiceTests
       RunOnStartup: null,
       Interval: null,
       Folder: null,
+      InitialBackfillPeriod: null,
       GenerateAfter: null);
 
     var sut = new DailyDigestBackgroundService(
@@ -85,6 +104,7 @@ public class DailyDigestBackgroundServiceTests
         RunOnStartup: true,
         Interval: TimeSpan.FromDays(1),
         Folder: "Releases",
+        InitialBackfillPeriod: TimeSpan.FromDays(1),
         GenerateAfter: TimeOnly.MinValue),
       NullLogger<DailyDigestBackgroundService>.Instance);
 
@@ -100,6 +120,63 @@ public class DailyDigestBackgroundServiceTests
       Assert.That(result.DigestDate, Is.EqualTo(DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-1))));
       Assert.That(result.DigestMarkdown, Does.Contain("No release mails were selected for this day."));
     });
+  }
+
+  [Test]
+  public async Task StartAsync_BackfillsLastCompletedDays_WhenInitialBackfillPeriodIsConfigured()
+  {
+    // Given.
+    var digestRepository = Substitute.For<IDailyDigestRepository>();
+    var mailRepository = Substitute.For<IMailRepository>();
+    var llmClient = Substitute.For<ILlmClient>();
+
+    digestRepository
+      .GetByDate(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
+      .Returns((DailyDigest?)null);
+
+    mailRepository
+      .GetByUtcRangeFromFolder(Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+      .Returns(Array.Empty<MailAgent.Application.Contracts.Mail.Models.StoredMail>());
+
+    var savedDigests = new List<DailyDigest>();
+    var backfillCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    digestRepository
+      .When(repository => repository.Save(Arg.Any<DailyDigest>(), Arg.Any<CancellationToken>()))
+      .Do(callInfo =>
+      {
+        savedDigests.Add(callInfo.Arg<DailyDigest>());
+
+        if (savedDigests.Count >= 2)
+        {
+          backfillCompleted.TrySetResult();
+        }
+      });
+
+    using var serviceProvider = CreateServiceProvider(digestRepository, mailRepository, llmClient);
+
+    var sut = new DailyDigestBackgroundService(
+      serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+      new DailyDigestBackgroundSettings(
+        Enabled: true,
+        RunOnStartup: true,
+        Interval: TimeSpan.FromDays(1),
+        Folder: "Releases",
+        InitialBackfillPeriod: TimeSpan.FromDays(2),
+        GenerateAfter: new TimeOnly(23, 59, 59)),
+      NullLogger<DailyDigestBackgroundService>.Instance);
+
+    // When.
+    await sut.StartAsync(CancellationToken.None);
+    await backfillCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+    await sut.StopAsync(CancellationToken.None);
+
+    // Then.
+    Assert.That(savedDigests.Select(x => x.DigestDate), Is.EqualTo(new[]
+    {
+      DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-2)),
+      DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-1))
+    }));
   }
 
   private static ServiceProvider CreateServiceProvider(

@@ -16,6 +16,8 @@
       MailImport__Enabled: "true"
       MailImport__Folders__0: "Releases"
       
+      DailyDigest__Enabled: "true"
+      
       MailServer__Provider: ${MAIL_PROVIDER}
       MailServer__Username: ${MAIL_USERNAME}
       MailServer__Password: ${MAIL_PASSWORD}

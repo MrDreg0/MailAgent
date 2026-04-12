@@ -10,5 +10,7 @@ internal sealed class DailyDigestConfiguration
 
   public string? Folder { get; init; }
 
+  public string? InitialBackfillPeriod { get; init; }
+
   public string? GenerateAfter { get; init; }
 }

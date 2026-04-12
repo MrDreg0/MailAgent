@@ -133,6 +133,7 @@ public class DependencyInjectionTests
     configurationValues["DailyDigest:RunOnStartup"] = "true";
     configurationValues["DailyDigest:Interval"] = "01:00:00";
     configurationValues["DailyDigest:Folder"] = "Releases";
+    configurationValues["DailyDigest:InitialBackfillPeriod"] = "7.00:00:00";
     configurationValues["DailyDigest:GenerateAfter"] = "08:00:00";
     var configuration = BuildConfiguration(configurationValues);
 
@@ -149,6 +150,7 @@ public class DependencyInjectionTests
       Assert.That(settings.RunOnStartup, Is.True);
       Assert.That(settings.Interval, Is.EqualTo(TimeSpan.FromHours(1)));
       Assert.That(settings.Folder, Is.EqualTo("Releases"));
+      Assert.That(settings.InitialBackfillPeriod, Is.EqualTo(TimeSpan.FromDays(7)));
       Assert.That(settings.GenerateAfter, Is.EqualTo(new TimeOnly(8, 0, 0)));
     });
     Assert.That(

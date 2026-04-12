@@ -15,6 +15,7 @@ internal static class DailyDigestConfigurationMappingExtensions
         RunOnStartup: null,
         Interval: null,
         Folder: null,
+        InitialBackfillPeriod: null,
         GenerateAfter: null);
     }
 
@@ -23,6 +24,7 @@ internal static class DailyDigestConfigurationMappingExtensions
       RunOnStartup: bool.Parse(configuration.RunOnStartup!),
       Interval: TimeSpan.Parse(configuration.Interval!),
       Folder: configuration.Folder!.Trim(),
+      InitialBackfillPeriod: TimeSpan.Parse(configuration.InitialBackfillPeriod!),
       GenerateAfter: TimeOnly.Parse(configuration.GenerateAfter!));
   }
 }
