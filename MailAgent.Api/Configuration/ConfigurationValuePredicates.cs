@@ -25,6 +25,11 @@ internal static class ConfigurationValuePredicates
     return TimeSpan.TryParse(value, out _);
   }
 
+  internal static bool IsTimeOnly(string? value)
+  {
+    return TimeOnly.TryParse(value, out _);
+  }
+
   internal static bool IsPositiveTimeSpan(string? value)
   {
     return TimeSpan.TryParse(value, out var parsedValue) && parsedValue > TimeSpan.Zero;

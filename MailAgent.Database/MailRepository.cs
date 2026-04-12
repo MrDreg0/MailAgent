@@ -99,6 +99,37 @@ public sealed class MailRepository(DataContext dbContext) : IMailRepository
       .ToListAsync(cancellationToken);
   }
 
+  public async Task<IReadOnlyList<StoredMail>> GetByUtcRangeFromFolder(
+    string folderName,
+    DateTimeOffset fromUtc,
+    DateTimeOffset toUtc,
+    CancellationToken cancellationToken = default)
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
+
+    if (toUtc <= fromUtc)
+    {
+      return [];
+    }
+
+    return await dbContext.Mails
+      .Where(mail => mail.Folder == folderName)
+      .Where(mail => mail.DateUtc >= fromUtc && mail.DateUtc < toUtc)
+      .OrderByDescending(mail => mail.DateUtc)
+      .ThenByDescending(mail => mail.Id)
+      .Select(mail => new StoredMail(
+        mail.Id,
+        mail.Folder,
+        mail.MessageId,
+        mail.DateUtc,
+        mail.From,
+        mail.Subject,
+        mail.RawBody,
+        mail.MarkdownBody,
+        mail.InsertedAt))
+      .ToListAsync(cancellationToken);
+  }
+
   public async Task<IReadOnlyList<StoredMail>> GetPage(int skip, int take, CancellationToken cancellationToken = default)
   {
     if (take <= 0)

@@ -23,6 +23,7 @@ public class SettingsTests
 
     var llmSettings = serviceProvider.GetRequiredService<LlmSettings>();
     var importSettings = serviceProvider.GetRequiredService<MailImportBackgroundSettings>();
+    var dailyDigestSettings = serviceProvider.GetRequiredService<DailyDigestBackgroundSettings>();
 
     // Then.
     Assert.Multiple(() =>
@@ -36,6 +37,10 @@ public class SettingsTests
       Assert.That(importSettings.RunOnStartup, Is.Null);
       Assert.That(importSettings.Interval, Is.Null);
       Assert.That(importSettings.Folders, Is.Empty);
+      Assert.That(dailyDigestSettings.Enabled, Is.False);
+      Assert.That(dailyDigestSettings.RunOnStartup, Is.Null);
+      Assert.That(dailyDigestSettings.Interval, Is.Null);
+      Assert.That(dailyDigestSettings.Folder, Is.Null);
     });
   }
 
@@ -145,6 +150,28 @@ public class SettingsTests
   }
 
   [Test]
+  public void AddValidatedConfiguration_Throws_WhenDailyDigestEnabledWithoutFolder()
+  {
+    // Given.
+    var services = new ServiceCollection();
+    var configurationValues = CreateValidConfigurationValues();
+    configurationValues["DailyDigest:Enabled"] = "true";
+    configurationValues["DailyDigest:RunOnStartup"] = "true";
+    configurationValues["DailyDigest:Interval"] = "01:00:00";
+    configurationValues["DailyDigest:GenerateAfter"] = "08:00:00";
+    var configuration = BuildConfiguration(configurationValues);
+
+    // When.
+    services.AddValidatedConfiguration(configuration);
+    using var serviceProvider = services.BuildServiceProvider();
+    var act = () => serviceProvider.GetRequiredService<DailyDigestBackgroundSettings>();
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<OptionsValidationException>()
+      .With.Message.Contains("Folder configuration is missing."));
+  }
+
+  [Test]
   public void AddValidatedConfiguration_Throws_WhenImapSecurityIsInvalid()
   {
     // Given.
@@ -189,6 +216,11 @@ public class SettingsTests
       ["MailImport:Interval"] = null,
       ["MailImport:InitialLookbackPeriod"] = null,
       ["MailImport:OverlapPeriod"] = null,
+      ["DailyDigest:Enabled"] = "false",
+      ["DailyDigest:RunOnStartup"] = null,
+      ["DailyDigest:Interval"] = null,
+      ["DailyDigest:Folder"] = null,
+      ["DailyDigest:GenerateAfter"] = null,
     };
   }
 

@@ -1,3 +1,4 @@
+using MailAgent.Application.Contracts.Digest;
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Database.PostgreSql;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,7 @@ public class PostgreSqlDependencyInjectionTests
       Assert.That(scope.ServiceProvider.GetService<PostgreSqlDataContext>(), Is.Not.Null);
       Assert.That(scope.ServiceProvider.GetService<DataContext>(), Is.Not.Null);
       Assert.That(scope.ServiceProvider.GetService<IMailRepository>(), Is.TypeOf<MailRepository>());
+      Assert.That(scope.ServiceProvider.GetService<IDailyDigestRepository>(), Is.TypeOf<DailyDigestRepository>());
     });
   }
 
@@ -44,6 +46,7 @@ public class PostgreSqlDependencyInjectionTests
       Assert.That(scope.ServiceProvider.GetService<PostgreSqlDataContext>(), Is.Not.Null);
       Assert.That(scope.ServiceProvider.GetService<DataContext>(), Is.Not.Null);
       Assert.That(scope.ServiceProvider.GetService<IMailRepository>(), Is.TypeOf<MailRepository>());
+      Assert.That(scope.ServiceProvider.GetService<IDailyDigestRepository>(), Is.TypeOf<DailyDigestRepository>());
     });
   }
 }

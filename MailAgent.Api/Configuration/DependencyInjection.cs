@@ -19,12 +19,17 @@ internal static class DependencyInjection
       services,
       options => options.Bind(configuration.GetSection("MailImport")));
 
+    AddValidatedOptions<DailyDigestConfiguration, DailyDigestConfigurationValidator>(
+      services,
+      options => options.Bind(configuration.GetSection("DailyDigest")));
+
     AddValidatedOptions<MailServerConfiguration, MailServerConfigurationValidator>(
       services,
       options => options.Bind(configuration.GetSection("MailServer")));
 
     services.AddSingleton(sp => sp.GetRequiredService<IOptions<LlmConfiguration>>().Value.ToRuntimeSettings());
     services.AddSingleton(sp => sp.GetRequiredService<IOptions<MailImportConfiguration>>().Value.ToRuntimeSettings());
+    services.AddSingleton(sp => sp.GetRequiredService<IOptions<DailyDigestConfiguration>>().Value.ToRuntimeSettings());
 
     return services;
   }

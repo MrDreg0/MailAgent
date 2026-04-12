@@ -16,6 +16,8 @@ public static class DependencyInjection
   {
     services.AddSingleton<EmailBodyConverter>()
       .AddScoped<MailImportService>()
+      .AddScoped<DailyDigestService>()
+      .AddScoped<DailyDigestGenerationService>()
       .AddScoped<ReleaseDigestService>()
       .AddScoped<OllamaLlmClient>()
       .AddScoped<LmStudioLlmClient>()

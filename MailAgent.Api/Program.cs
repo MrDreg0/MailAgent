@@ -22,7 +22,8 @@ webApplicationBuilder.Services
   .AddPostgreSqlDataContext(serviceProvider => serviceProvider.GetRequiredService<IOptions<ConnectionStringsConfiguration>>().Value.Database!)
   .AddApplication()
   .AddConfiguredMailClient()
-  .AddMailImportBackgroundService();
+  .AddMailImportBackgroundService()
+  .AddDailyDigestBackgroundService();
 
 var webApplication = webApplicationBuilder.Build();
 

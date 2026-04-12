@@ -123,6 +123,40 @@ public class DependencyInjectionTests
   }
 
   [Test]
+  public void AddDailyDigestBackgroundService_RegistersHostedServiceAndSettings()
+  {
+    // Given.
+    var services = new ServiceCollection();
+    services.AddLogging();
+    var configurationValues = CreateValidConfigurationValues();
+    configurationValues["DailyDigest:Enabled"] = "true";
+    configurationValues["DailyDigest:RunOnStartup"] = "true";
+    configurationValues["DailyDigest:Interval"] = "01:00:00";
+    configurationValues["DailyDigest:Folder"] = "Releases";
+    configurationValues["DailyDigest:GenerateAfter"] = "08:00:00";
+    var configuration = BuildConfiguration(configurationValues);
+
+    // When.
+    services.AddValidatedConfiguration(configuration);
+    services.AddDailyDigestBackgroundService();
+    using var serviceProvider = services.BuildServiceProvider();
+    var settings = serviceProvider.GetRequiredService<DailyDigestBackgroundSettings>();
+
+    // Then.
+    Assert.Multiple(() =>
+    {
+      Assert.That(settings.Enabled, Is.True);
+      Assert.That(settings.RunOnStartup, Is.True);
+      Assert.That(settings.Interval, Is.EqualTo(TimeSpan.FromHours(1)));
+      Assert.That(settings.Folder, Is.EqualTo("Releases"));
+      Assert.That(settings.GenerateAfter, Is.EqualTo(new TimeOnly(8, 0, 0)));
+    });
+    Assert.That(
+      serviceProvider.GetServices<IHostedService>().Any(service => service is DailyDigestBackgroundService),
+      Is.True);
+  }
+
+  [Test]
   public void AddApplication_RegistersLlmClient_WhenProviderIsOllama()
   {
     // Given.
@@ -203,6 +237,7 @@ public class DependencyInjectionTests
       ["Llm:FastModel"] = "llama3.2:3b",
       ["Llm:MainModel"] = "qwen2.5:7b-instruct",
       ["MailImport:Enabled"] = "false",
+      ["DailyDigest:Enabled"] = "false",
     };
   }
 

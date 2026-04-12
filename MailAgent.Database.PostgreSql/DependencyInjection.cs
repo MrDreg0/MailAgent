@@ -1,3 +1,4 @@
+using MailAgent.Application.Contracts.Digest;
 using MailAgent.Application.Contracts.Mail;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +33,7 @@ public static class DependencyInjection
     });
     services.AddScoped<DataContext>(serviceProvider => serviceProvider.GetRequiredService<PostgreSqlDataContext>());
     services.AddScoped<IMailRepository, MailRepository>();
+    services.AddScoped<IDailyDigestRepository, DailyDigestRepository>();
 
     return services;
   }

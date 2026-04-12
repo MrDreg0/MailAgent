@@ -32,5 +32,12 @@ internal static class DependencyInjection
 
       return services;
     }
+
+    internal IServiceCollection AddDailyDigestBackgroundService()
+    {
+      services.AddHostedService<DailyDigestBackgroundService>();
+
+      return services;
+    }
   }
 }

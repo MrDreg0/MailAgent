@@ -9,6 +9,12 @@ public interface IMailRepository
 
   Task<IReadOnlyList<StoredMail>> GetByPeriodFromFolder(string folderName, TimeSpan period, CancellationToken cancellationToken = default);
 
+  Task<IReadOnlyList<StoredMail>> GetByUtcRangeFromFolder(
+    string folderName,
+    DateTimeOffset fromUtc,
+    DateTimeOffset toUtc,
+    CancellationToken cancellationToken = default);
+
   Task<IReadOnlyList<StoredMail>> GetPage(int skip, int take, CancellationToken cancellationToken = default);
 
   Task<int> GetCount(CancellationToken cancellationToken = default);

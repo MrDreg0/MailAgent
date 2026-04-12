@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
+using MailAgent.Application.Contracts.Digest;
+using MailAgent.Application.Contracts.Digest.Models;
 using MailAgent.Api.Endpoints;
 using MailAgent.Application.Contracts.Llm;
 using MailAgent.Application.Contracts.Mail;
@@ -20,6 +22,7 @@ public class MailEndpointsTests
 {
   private IMailClient _mailClient = null!;
   private IMailRepository _mailRepository = null!;
+  private IDailyDigestRepository _dailyDigestRepository = null!;
   private ILlmClient _llmClient = null!;
 
   [SetUp]
@@ -27,6 +30,7 @@ public class MailEndpointsTests
   {
     _mailClient = Substitute.For<IMailClient>();
     _mailRepository = Substitute.For<IMailRepository>();
+    _dailyDigestRepository = Substitute.For<IDailyDigestRepository>();
     _llmClient = Substitute.For<ILlmClient>();
   }
 
@@ -136,6 +140,72 @@ public class MailEndpointsTests
     });
   }
 
+  [Test]
+  public async Task GetDailyDigests_ReturnsLatestPersistedDigests()
+  {
+    // Given.
+    _dailyDigestRepository
+      .GetLatest("Releases", 10, Arg.Any<CancellationToken>())
+      .Returns([
+        new DailyDigest(
+          1,
+          "Releases",
+          new DateOnly(2026, 4, 10),
+          20,
+          3,
+          "# Release Digest",
+          DateTimeOffset.Parse("2026-04-11T08:00:00Z"))
+      ]);
+
+    using var client = await CreateClientAsync();
+
+    // When.
+    var response = await client.GetAsync("/daily-digests?folder=Releases&take=10");
+
+    // Then.
+    Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+    var payload = JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
+    Assert.Multiple(() =>
+    {
+      Assert.That(payload["items"]!.AsArray().Count, Is.EqualTo(1));
+      Assert.That(payload["items"]![0]!["folder"]!.GetValue<string>(), Is.EqualTo("Releases"));
+      Assert.That(payload["items"]![0]!["digestDate"]!.GetValue<string>(), Is.EqualTo("2026-04-10"));
+    });
+  }
+
+  [Test]
+  public async Task GetDailyDigestByDate_ReturnsPersistedDigestDocument()
+  {
+    // Given.
+    _dailyDigestRepository
+      .GetByDate("Releases", new DateOnly(2026, 4, 10), Arg.Any<CancellationToken>())
+      .Returns(new DailyDigest(
+        1,
+        "Releases",
+        new DateOnly(2026, 4, 10),
+        20,
+        3,
+        "# Release Digest",
+        DateTimeOffset.Parse("2026-04-11T08:00:00Z")));
+
+    using var client = await CreateClientAsync();
+
+    // When.
+    var response = await client.GetAsync("/daily-digests/2026-04-10?folder=Releases");
+
+    // Then.
+    Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+    var payload = JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
+    Assert.Multiple(() =>
+    {
+      Assert.That(payload["folder"]!.GetValue<string>(), Is.EqualTo("Releases"));
+      Assert.That(payload["digestMarkdown"]!.GetValue<string>(), Is.EqualTo("# Release Digest"));
+      Assert.That(payload["selected"]!.GetValue<int>(), Is.EqualTo(3));
+    });
+  }
+
   private async Task<HttpClient> CreateClientAsync()
   {
     var builder = WebApplication.CreateBuilder();
@@ -143,6 +213,7 @@ public class MailEndpointsTests
 
     builder.Services.AddSingleton(_mailClient);
     builder.Services.AddSingleton(_mailRepository);
+    builder.Services.AddSingleton(_dailyDigestRepository);
     builder.Services.AddSingleton(_llmClient);
     builder.Services.AddSingleton(new LlmSettings
     {

@@ -169,6 +169,26 @@ public class MailRepositoryTests
   }
 
   [Test]
+  public async Task GetByUtcRangeFromFolder_ReturnsOnlyMailsInsideRequestedUtcWindow()
+  {
+    // Given.
+    _dbContext.Mails.AddRange(
+      new MailRecord(1, "Releases", "message-1", DateTimeOffset.Parse("2026-04-10T00:15:00Z"), "a@example.com", "first", "raw-1", "md-1", "2026-04-10 00:15:00Z"),
+      new MailRecord(2, "Releases", "message-2", DateTimeOffset.Parse("2026-04-10T23:59:00Z"), "b@example.com", "second", "raw-2", "md-2", "2026-04-10 23:59:00Z"),
+      new MailRecord(3, "Releases", "message-3", DateTimeOffset.Parse("2026-04-11T00:00:00Z"), "c@example.com", "outside", "raw-3", "md-3", "2026-04-11 00:00:00Z"));
+    await _dbContext.SaveChangesAsync();
+
+    // When.
+    var result = await _sut.GetByUtcRangeFromFolder(
+      "Releases",
+      DateTimeOffset.Parse("2026-04-10T00:00:00Z"),
+      DateTimeOffset.Parse("2026-04-11T00:00:00Z"));
+
+    // Then.
+    Assert.That(result.Select(x => x.MessageId), Is.EqualTo(["message-2", "message-1"]));
+  }
+
+  [Test]
   public async Task GetPage_ReturnsRequestedSlice_InDescendingDateOrder()
   {
     // Given.
