@@ -1,0 +1,122 @@
+@page "/daily-digests"
+@using MailAgent.Web.Browse
+@inject DailyDigestBrowserService DailyDigestBrowserService
+
+<PageTitle>Daily Digests</PageTitle>
+
+<div class="py-4">
+  <div class="mb-4">
+    <h1 class="mb-1">Daily Digests</h1>
+    <p class="text-body-secondary mb-0">Browse persisted daily release summaries built from stored mails.</p>
+  </div>
+
+  @if (!string.IsNullOrEmpty(_errorMessage))
+  {
+    <Alert Color="AlertColor.Danger">
+      <Icon Name="IconName.ExclamationTriangleFill" class="me-2"></Icon>
+      @_errorMessage
+    </Alert>
+  }
+
+  @if (_isLoading)
+  {
+    <div class="d-flex align-items-center gap-3 py-3">
+      <Spinner Color="SpinnerColor.Primary" />
+      <span>Loading daily digests...</span>
+    </div>
+  }
+
+  <Card>
+    <CardBody>
+      <Grid TItem="DailyDigest"
+            Class="table table-hover align-middle"
+            DataProvider="DailyDigestsDataProvider"
+            AllowPaging="true"
+            AutoHidePaging="true"
+            EmptyText="No persisted daily digests found."
+            PageSize="10"
+            PageSizeSelectorVisible="true"
+            PageSizeSelectorItems="@PageSizeOptions"
+            PaginationItemsTextFormat="{0}-{1} of {2}"
+            ItemsPerPageText="Per page"
+            Responsive="true"
+            AllowDetailView="true">
+        <GridColumns>
+          <GridColumn TItem="DailyDigest" HeaderText="Date">
+            @context.DigestDate.ToString("yyyy-MM-dd")
+          </GridColumn>
+          <GridColumn TItem="DailyDigest" HeaderText="Folder">
+            @context.Folder
+          </GridColumn>
+          <GridColumn TItem="DailyDigest" HeaderText="Fetched">
+            @context.TotalFetched
+          </GridColumn>
+          <GridColumn TItem="DailyDigest" HeaderText="Selected">
+            @context.Selected
+          </GridColumn>
+          <GridColumn TItem="DailyDigest" HeaderText="Generated">
+            @context.GeneratedAtUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'")
+          </GridColumn>
+        </GridColumns>
+
+        <GridDetailView TItem="DailyDigest">
+          <Card class="mt-4 digest-detail-card">
+            <CardHeader>
+              <div class="d-flex flex-column gap-2">
+                <div class="fw-semibold">Release Digest for @context.DigestDate.ToString("yyyy-MM-dd")</div>
+                <div class="d-flex flex-wrap gap-2 digest-metadata">
+                  <Badge Color="BadgeColor.Secondary">Folder: @context.Folder</Badge>
+                  <Badge Color="BadgeColor.Light">Fetched: @context.TotalFetched</Badge>
+                  <Badge Color="BadgeColor.Light">Selected: @context.Selected</Badge>
+                  <Badge Color="BadgeColor.Light">Generated: @context.GeneratedAtUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'")</Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardBody>
+              <DailyDigestDocument Content="@context.DigestMarkdown" />
+            </CardBody>
+          </Card>
+        </GridDetailView>
+      </Grid>
+    </CardBody>
+  </Card>
+</div>
+
+@code {
+  private const string FolderName = "Releases";
+  private static readonly int[] PageSizeOptions = [10, 25, 100];
+
+  private bool _isLoading = true;
+  private string? _errorMessage;
+
+  private async Task<GridDataProviderResult<DailyDigest>> DailyDigestsDataProvider(GridDataProviderRequest<DailyDigest> request)
+  {
+    try
+    {
+      _errorMessage = null;
+
+      var digestPage = await DailyDigestBrowserService.GetPage(FolderName, request.PageNumber, request.PageSize);
+
+      return new GridDataProviderResult<DailyDigest>
+      {
+        Data = digestPage.Items,
+        TotalCount = digestPage.TotalCount
+      };
+    }
+    catch (Exception exception)
+    {
+      _errorMessage = $"Failed to load daily digests: {exception.Message}";
+
+      return new GridDataProviderResult<DailyDigest>
+      {
+        Data = [],
+        TotalCount = 0,
+      };
+    }
+    finally
+    {
+      _isLoading = false;
+      await InvokeAsync(StateHasChanged);
+    }
+  }
+}

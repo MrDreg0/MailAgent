@@ -1,0 +1,48 @@
+.digest-document {
+  line-height: 1.65;
+  font-size: 0.98rem;
+}
+
+.digest-document ::deep h1,
+.digest-document ::deep h2,
+.digest-document ::deep h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.digest-document ::deep h1:first-child,
+.digest-document ::deep h2:first-child,
+.digest-document ::deep h3:first-child {
+  margin-top: 0;
+}
+
+.digest-document ::deep p,
+.digest-document ::deep ul,
+.digest-document ::deep ol {
+  margin-bottom: 0.9rem;
+}
+
+.digest-document ::deep li + li {
+  margin-top: 0.35rem;
+}
+
+.digest-document ::deep blockquote {
+  margin: 1rem 0;
+  padding-left: 1rem;
+  border-left: 0.25rem solid var(--bs-border-color);
+  color: var(--bs-secondary-color);
+}
+
+.digest-document ::deep code {
+  background-color: var(--bs-tertiary-bg);
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.35rem;
+}
+
+.digest-document ::deep pre {
+  background-color: var(--bs-tertiary-bg);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}

@@ -4,6 +4,16 @@ namespace MailAgent.Application.Contracts.Digest;
 
 public interface IDailyDigestRepository
 {
+  Task<int> GetCount(
+    string folderName,
+    CancellationToken cancellationToken = default);
+
+  Task<IReadOnlyList<DailyDigest>> GetPage(
+    string folderName,
+    int skip,
+    int take,
+    CancellationToken cancellationToken = default);
+
   Task<DailyDigest?> GetByDate(
     string folderName,
     DateOnly digestDate,

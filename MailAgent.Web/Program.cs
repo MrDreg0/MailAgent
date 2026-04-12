@@ -25,7 +25,8 @@ builder.Services
   .AddValidatedConfiguration(builder.Configuration)
   .AddPostgreSqlDataContext(serviceProvider =>
     serviceProvider.GetRequiredService<IOptions<ConnectionStringsConfiguration>>().Value.Database!)
-  .AddScoped<MailBrowserService>();
+  .AddScoped<MailBrowserService>()
+  .AddScoped<DailyDigestBrowserService>();
 
 var app = builder.Build();
 var useHttpsRedirection = bool.Parse(app.Services.GetRequiredService<IOptions<WebHostConfiguration>>().Value.UseHttpsRedirection!);

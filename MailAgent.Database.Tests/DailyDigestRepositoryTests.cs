@@ -81,6 +81,41 @@ public class DailyDigestRepositoryTests
   }
 
   [Test]
+  public async Task GetCount_ReturnsCountForRequestedFolderOnly()
+  {
+    // Given.
+    await _sut.Save(CreateDailyDigest(folder: "Releases", digestDate: new DateOnly(2026, 4, 9)));
+    await _sut.Save(CreateDailyDigest(folder: "Releases", digestDate: new DateOnly(2026, 4, 10)));
+    await _sut.Save(CreateDailyDigest(folder: "Inbox", digestDate: new DateOnly(2026, 4, 10)));
+
+    // When.
+    var result = await _sut.GetCount("Releases");
+
+    // Then.
+    Assert.That(result, Is.EqualTo(2));
+  }
+
+  [Test]
+  public async Task GetPage_ReturnsRequestedFolderPageInDescendingDateOrder()
+  {
+    // Given.
+    await _sut.Save(CreateDailyDigest(folder: "Releases", digestDate: new DateOnly(2026, 4, 8), digestMarkdown: "oldest"));
+    await _sut.Save(CreateDailyDigest(folder: "Releases", digestDate: new DateOnly(2026, 4, 9), digestMarkdown: "middle"));
+    await _sut.Save(CreateDailyDigest(folder: "Releases", digestDate: new DateOnly(2026, 4, 10), digestMarkdown: "newest"));
+    await _sut.Save(CreateDailyDigest(folder: "Inbox", digestDate: new DateOnly(2026, 4, 11), digestMarkdown: "other-folder"));
+
+    // When.
+    var result = await _sut.GetPage("Releases", skip: 1, take: 2);
+
+    // Then.
+    Assert.That(result.Select(x => x.DigestDate), Is.EqualTo(new[]
+    {
+      new DateOnly(2026, 4, 9),
+      new DateOnly(2026, 4, 8)
+    }));
+  }
+
+  [Test]
   public async Task GetLatest_ReturnsLatestDigestsInDescendingDateOrder()
   {
     // Given.
@@ -99,13 +134,14 @@ public class DailyDigestRepositoryTests
   }
 
   private static DailyDigest CreateDailyDigest(
+    string folder = "Releases",
     DateOnly? digestDate = null,
     int selected = 2,
     string digestMarkdown = "digest body")
   {
     return new DailyDigest(
       Id: 0,
-      Folder: "Releases",
+      Folder: folder,
       DigestDate: digestDate ?? new DateOnly(2026, 4, 10),
       TotalFetched: 5,
       Selected: selected,

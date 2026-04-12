@@ -6,6 +6,53 @@ namespace MailAgent.Database;
 
 public sealed class DailyDigestRepository(DataContext dbContext) : IDailyDigestRepository
 {
+  public Task<int> GetCount(
+    string folderName,
+    CancellationToken cancellationToken = default)
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
+
+    return dbContext.DailyDigests
+      .AsNoTracking()
+      .CountAsync(digest => digest.Folder == folderName, cancellationToken);
+  }
+
+  public async Task<IReadOnlyList<DailyDigest>> GetPage(
+    string folderName,
+    int skip,
+    int take,
+    CancellationToken cancellationToken = default)
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
+
+    if (skip < 0)
+    {
+      throw new ArgumentOutOfRangeException(nameof(skip), skip, "Skip must be non-negative.");
+    }
+
+    if (take <= 0)
+    {
+      throw new ArgumentOutOfRangeException(nameof(take), take, "Take must be positive.");
+    }
+
+    return await dbContext.DailyDigests
+      .AsNoTracking()
+      .Where(digest => digest.Folder == folderName)
+      .OrderByDescending(digest => digest.DigestDate)
+      .ThenByDescending(digest => digest.GeneratedAtUtc)
+      .Skip(skip)
+      .Take(take)
+      .Select(digest => new DailyDigest(
+        digest.Id,
+        digest.Folder,
+        digest.DigestDate,
+        digest.TotalFetched,
+        digest.Selected,
+        digest.DigestMarkdown,
+        digest.GeneratedAtUtc))
+      .ToListAsync(cancellationToken);
+  }
+
   public async Task<DailyDigest?> GetByDate(
     string folderName,
     DateOnly digestDate,
