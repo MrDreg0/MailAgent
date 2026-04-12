@@ -1,8 +1,30 @@
+@using System.Text.RegularExpressions
+
 <div class="digest-document">
-  <Markdown>@Content</Markdown>
+  <Markdown>@NormalizedContent</Markdown>
 </div>
 
 @code {
+  private static readonly Regex HeadingListRegex = new(
+    @"(^#{1,6}\s.+\n)([-*]\s)",
+    RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
   [Parameter, EditorRequired]
   public string Content { get; set; } = string.Empty;
+
+  private string NormalizedContent => NormalizeMarkdown(Content);
+
+  private static string NormalizeMarkdown(string content)
+  {
+    if (string.IsNullOrWhiteSpace(content))
+    {
+      return string.Empty;
+    }
+
+    var normalized = content.Replace("\r\n", "\n");
+
+    // BlazorBootstrap Markdown does not reliably start a list when the first marker
+    // comes immediately after a heading, so we insert an empty line in that case.
+    return HeadingListRegex.Replace(normalized, "$1\n$2");
+  }
 }
