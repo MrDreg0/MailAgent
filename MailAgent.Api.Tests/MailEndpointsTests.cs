@@ -269,6 +269,7 @@ public class MailEndpointsTests
     builder.Services.AddSingleton(_mailRepository);
     builder.Services.AddSingleton(_dailyDigestRepository);
     builder.Services.AddSingleton(_llmClient);
+    builder.Services.AddSingleton(new DailyDigestSettings("English"));
     builder.Services.AddSingleton(new LlmSettings
     {
       Provider = LlmProvider.Ollama,

@@ -30,6 +30,7 @@ internal static class DependencyInjection
     services.AddSingleton(sp => sp.GetRequiredService<IOptions<LlmConfiguration>>().Value.ToRuntimeSettings());
     services.AddSingleton(sp => sp.GetRequiredService<IOptions<MailImportConfiguration>>().Value.ToRuntimeSettings());
     services.AddSingleton(sp => sp.GetRequiredService<IOptions<DailyDigestConfiguration>>().Value.ToRuntimeSettings());
+    services.AddSingleton(sp => sp.GetRequiredService<IOptions<DailyDigestConfiguration>>().Value.ToDigestSettings());
 
     return services;
   }

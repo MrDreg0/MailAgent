@@ -89,6 +89,10 @@ public class DailyDigestBackgroundServiceTests
       .GetByUtcRangeFromFolder(Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
       .Returns(Array.Empty<MailAgent.Application.Contracts.Mail.Models.StoredMail>());
 
+    llmClient
+      .Generate(Arg.Any<LlmGenerateRequest>(), Arg.Any<CancellationToken>())
+      .Returns(new LlmGenerateResponse("# Release Digest for test\n\n## Highlights\n- No release mails were selected for this day.\n\n## Releases\n- No release entries."));
+
     var savedDigest = new TaskCompletionSource<DailyDigest>(TaskCreationOptions.RunContinuationsAsynchronously);
 
     digestRepository
@@ -137,6 +141,10 @@ public class DailyDigestBackgroundServiceTests
     mailRepository
       .GetByUtcRangeFromFolder(Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
       .Returns(Array.Empty<MailAgent.Application.Contracts.Mail.Models.StoredMail>());
+
+    llmClient
+      .Generate(Arg.Any<LlmGenerateRequest>(), Arg.Any<CancellationToken>())
+      .Returns(new LlmGenerateResponse("# Release Digest for test\n\n## Highlights\n- No release mails were selected for this day.\n\n## Releases\n- No release entries."));
 
     var savedDigests = new List<DailyDigest>();
     var backfillCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -188,6 +196,7 @@ public class DailyDigestBackgroundServiceTests
     services.AddSingleton(dailyDigestRepository);
     services.AddSingleton(mailRepository);
     services.AddSingleton(llmClient);
+    services.AddSingleton(new DailyDigestSettings("English"));
     services.AddSingleton(new LlmSettings
     {
       Provider = LlmProvider.Ollama,

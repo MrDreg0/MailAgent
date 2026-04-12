@@ -23,7 +23,12 @@ public class DailyDigestServiceTests
     _fixture = new Fixture();
     _mailRepository = Substitute.For<IMailRepository>();
     _llmClient = Substitute.For<ILlmClient>();
-    _sut = new DailyDigestService(_mailRepository, _llmClient, CreateLlmSettings(), NullLogger<DailyDigestService>.Instance);
+    _sut = new DailyDigestService(
+      _mailRepository,
+      _llmClient,
+      CreateLlmSettings(),
+      new DailyDigestSettings("Russian"),
+      NullLogger<DailyDigestService>.Instance);
   }
 
   [Test]
@@ -79,21 +84,22 @@ public class DailyDigestServiceTests
       Assert.That(requests[1].Prompt, Does.Not.Contain("Subject: General update"));
       Assert.That(requests[1].Prompt, Does.Contain($"Body preview: {new string('a', 1500)}"));
       Assert.That(requests[1].Prompt, Does.Not.Contain(new string('a', 1501)));
-      Assert.That(requests[1].Prompt, Does.Contain("Не добавляй source"));
-      Assert.That(requests[1].Prompt, Does.Contain("Не используй эмодзи"));
-      Assert.That(requests[1].Prompt, Does.Contain("не больше 5 секций"));
+      Assert.That(requests[1].Prompt, Does.Contain("Write the final digest in Russian."));
+      Assert.That(requests[1].Prompt, Does.Contain("Do not add source"));
+      Assert.That(requests[1].Prompt, Does.Contain("Do not use emoji"));
+      Assert.That(requests[1].Prompt, Does.Contain("no more than 5 sections"));
       Assert.That(requests[1].Prompt, Does.Contain("release notes"));
-      Assert.That(requests[1].Prompt, Does.Contain("docker-образы"));
-      Assert.That(requests[1].Prompt, Does.Contain("Если есть основная версия продукта и отдельное письмо про installer"));
-      Assert.That(requests[1].Prompt, Does.Contain("Не пиши фразы вроде 'веб-клиент доступен по ссылке'"));
-      Assert.That(requests[1].Prompt, Does.Contain("Если письмо почти целиком про ссылку"));
-      Assert.That(requests[1].Prompt, Does.Contain("Если письмо сообщает о новой версии продукта, а остальной текст сводится к ссылке"));
-      Assert.That(requests[1].Prompt, Does.Contain("что реально изменилось за день?"));
+      Assert.That(requests[1].Prompt, Does.Contain("docker images"));
+      Assert.That(requests[1].Prompt, Does.Contain("If there is a main product version and a separate installer email"));
+      Assert.That(requests[1].Prompt, Does.Contain("Do not write phrases like 'the web client is available via the link'"));
+      Assert.That(requests[1].Prompt, Does.Contain("If an email is mostly about links"));
+      Assert.That(requests[1].Prompt, Does.Contain("If an email announces a new product version"));
+      Assert.That(requests[1].Prompt, Does.Contain("what actually changed today?"));
     });
   }
 
   [Test]
-  public async Task BuildForDate_ReturnsStaticEmptyDigest_WhenNoReleaseEmailsWereSelected()
+  public async Task BuildForDate_UsesConfiguredLanguageForEmptyDigest_WhenNoReleaseEmailsWereSelected()
   {
     // Given.
     var digestDate = new DateOnly(2026, 4, 10);
@@ -110,7 +116,9 @@ public class DailyDigestServiceTests
 
     _llmClient
       .Generate(Arg.Any<LlmGenerateRequest>(), Arg.Any<CancellationToken>())
-      .Returns(new LlmGenerateResponse(string.Empty));
+      .Returns(
+        new LlmGenerateResponse(string.Empty),
+        new LlmGenerateResponse("# Дайджест релизов за 2026-04-10\n\n## Главное\n- За этот день релизные письма не выбраны.\n\n## Релизы\n- Релизных записей нет."));
 
     // When.
     var result = await _sut.BuildForDate("Releases", digestDate);
@@ -120,10 +128,10 @@ public class DailyDigestServiceTests
     {
       Assert.That(result.TotalFetched, Is.EqualTo(1));
       Assert.That(result.Selected, Is.EqualTo(0));
-      Assert.That(result.DigestMarkdown, Does.Contain("No release mails were selected for this day."));
+      Assert.That(result.DigestMarkdown, Does.Contain("За этот день релизные письма не выбраны."));
     });
 
-    await _llmClient.Received(1).Generate(Arg.Any<LlmGenerateRequest>(), Arg.Any<CancellationToken>());
+    await _llmClient.Received(2).Generate(Arg.Any<LlmGenerateRequest>(), Arg.Any<CancellationToken>());
   }
 
   [Test]

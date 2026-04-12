@@ -1,6 +1,7 @@
 using MailAgent.Api.BackgroundServices;
 using MailAgent.Api.Configuration;
 using MailAgent.Application;
+using MailAgent.Application.Digest;
 using MailAgent.Application.Contracts.Llm;
 using MailAgent.Application.Contracts.Mail;
 using MailAgent.Application.Exceptions;
@@ -133,6 +134,7 @@ public class DependencyInjectionTests
     configurationValues["DailyDigest:RunOnStartup"] = "true";
     configurationValues["DailyDigest:Interval"] = "01:00:00";
     configurationValues["DailyDigest:Folder"] = "Releases";
+    configurationValues["DailyDigest:OutputLanguage"] = "Russian";
     configurationValues["DailyDigest:InitialBackfillPeriod"] = "7.00:00:00";
     configurationValues["DailyDigest:GenerateAfter"] = "08:00:00";
     var configuration = BuildConfiguration(configurationValues);
@@ -142,6 +144,7 @@ public class DependencyInjectionTests
     services.AddDailyDigestBackgroundService();
     using var serviceProvider = services.BuildServiceProvider();
     var settings = serviceProvider.GetRequiredService<DailyDigestBackgroundSettings>();
+    var digestSettings = serviceProvider.GetRequiredService<DailyDigestSettings>();
 
     // Then.
     Assert.Multiple(() =>
@@ -152,6 +155,7 @@ public class DependencyInjectionTests
       Assert.That(settings.Folder, Is.EqualTo("Releases"));
       Assert.That(settings.InitialBackfillPeriod, Is.EqualTo(TimeSpan.FromDays(7)));
       Assert.That(settings.GenerateAfter, Is.EqualTo(new TimeOnly(8, 0, 0)));
+      Assert.That(digestSettings.OutputLanguage, Is.EqualTo("Russian"));
     });
     Assert.That(
       serviceProvider.GetServices<IHostedService>().Any(service => service is DailyDigestBackgroundService),
@@ -240,6 +244,7 @@ public class DependencyInjectionTests
       ["Llm:MainModel"] = "qwen2.5:7b-instruct",
       ["MailImport:Enabled"] = "false",
       ["DailyDigest:Enabled"] = "false",
+      ["DailyDigest:OutputLanguage"] = "Russian",
     };
   }
 

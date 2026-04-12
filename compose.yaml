@@ -17,6 +17,7 @@
       MailImport__Folders__0: "Releases"
       
       DailyDigest__Enabled: "true"
+      DailyDigest__OutputLanguage: ${PREFER_LANGUAGE}
       
       MailServer__Provider: ${MAIL_PROVIDER}
       MailServer__Username: ${MAIL_USERNAME}

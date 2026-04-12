@@ -1,5 +1,6 @@
 using MailAgent.Api.Configuration;
 using MailAgent.Api.BackgroundServices;
+using MailAgent.Application.Digest;
 using MailAgent.Application.Llm;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,7 @@ public class SettingsTests
     var llmSettings = serviceProvider.GetRequiredService<LlmSettings>();
     var importSettings = serviceProvider.GetRequiredService<MailImportBackgroundSettings>();
     var dailyDigestSettings = serviceProvider.GetRequiredService<DailyDigestBackgroundSettings>();
+    var digestSettings = serviceProvider.GetRequiredService<DailyDigestSettings>();
 
     // Then.
     Assert.Multiple(() =>
@@ -42,6 +44,7 @@ public class SettingsTests
       Assert.That(dailyDigestSettings.Interval, Is.Null);
       Assert.That(dailyDigestSettings.Folder, Is.Null);
       Assert.That(dailyDigestSettings.InitialBackfillPeriod, Is.Null);
+      Assert.That(digestSettings.OutputLanguage, Is.EqualTo("Russian"));
     });
   }
 
@@ -161,6 +164,7 @@ public class SettingsTests
     configurationValues["DailyDigest:Interval"] = "01:00:00";
     configurationValues["DailyDigest:GenerateAfter"] = "08:00:00";
     configurationValues["DailyDigest:InitialBackfillPeriod"] = "7.00:00:00";
+    configurationValues["DailyDigest:OutputLanguage"] = "Russian";
     var configuration = BuildConfiguration(configurationValues);
 
     // When.
@@ -171,6 +175,31 @@ public class SettingsTests
     // Then.
     Assert.That(act, Throws.TypeOf<OptionsValidationException>()
       .With.Message.Contains("Folder configuration is missing."));
+  }
+
+  [Test]
+  public void AddValidatedConfiguration_Throws_WhenDailyDigestEnabledWithoutOutputLanguage()
+  {
+    // Given.
+    var services = new ServiceCollection();
+    var configurationValues = CreateValidConfigurationValues();
+    configurationValues["DailyDigest:Enabled"] = "true";
+    configurationValues["DailyDigest:RunOnStartup"] = "true";
+    configurationValues["DailyDigest:Interval"] = "01:00:00";
+    configurationValues["DailyDigest:Folder"] = "Releases";
+    configurationValues["DailyDigest:GenerateAfter"] = "08:00:00";
+    configurationValues["DailyDigest:InitialBackfillPeriod"] = "7.00:00:00";
+    configurationValues["DailyDigest:OutputLanguage"] = null;
+    var configuration = BuildConfiguration(configurationValues);
+
+    // When.
+    services.AddValidatedConfiguration(configuration);
+    using var serviceProvider = services.BuildServiceProvider();
+    var act = () => serviceProvider.GetRequiredService<DailyDigestBackgroundSettings>();
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<OptionsValidationException>()
+      .With.Message.Contains("OutputLanguage configuration is missing."));
   }
 
   [Test]
@@ -222,6 +251,7 @@ public class SettingsTests
       ["DailyDigest:RunOnStartup"] = null,
       ["DailyDigest:Interval"] = null,
       ["DailyDigest:Folder"] = null,
+      ["DailyDigest:OutputLanguage"] = "Russian",
       ["DailyDigest:InitialBackfillPeriod"] = null,
       ["DailyDigest:GenerateAfter"] = null,
     };

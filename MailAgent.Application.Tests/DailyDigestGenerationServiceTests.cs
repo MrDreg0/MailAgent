@@ -36,6 +36,7 @@ public class DailyDigestGenerationServiceTests
         FastModel = "llama3.2:3b",
         MainModel = "qwen3.5-9b"
       },
+      new DailyDigestSettings("Russian"),
       Substitute.For<ILogger<DailyDigestService>>());
     _sut = new DailyDigestGenerationService(_dailyDigestRepository, _dailyDigestService, Substitute.For<ILogger<DailyDigestGenerationService>>());
   }

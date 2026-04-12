@@ -40,6 +40,12 @@ internal sealed class DailyDigestConfigurationValidator : AbstractValidator<Dail
         .WithName(nameof(DailyDigestConfiguration.Folder))
         .WithMessage("{PropertyName} configuration is missing.");
 
+      RuleFor(configuration => configuration.OutputLanguage)
+        .Cascade(CascadeMode.Stop)
+        .NotEmpty()
+        .WithName(nameof(DailyDigestConfiguration.OutputLanguage))
+        .WithMessage("{PropertyName} configuration is missing.");
+
       RuleFor(configuration => configuration.InitialBackfillPeriod)
         .Cascade(CascadeMode.Stop)
         .NotEmpty()

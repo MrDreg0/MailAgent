@@ -10,6 +10,7 @@ public sealed class DailyDigestService(
   IMailRepository mailRepository,
   ILlmClient llmClient,
   LlmSettings llmSettings,
+  DailyDigestSettings dailyDigestSettings,
   ILogger<DailyDigestService> logger)
 {
   private const int ClassifierBatchSize = 50;
@@ -62,7 +63,7 @@ public sealed class DailyDigestService(
 
     var selected = await SelectReleaseEmails(emails, cancellationToken);
     var digestMarkdown = selected.Count == 0
-      ? BuildEmptyDigest(digestDate)
+      ? await BuildEmptyDigest(digestDate, cancellationToken)
       : await BuildDigest(digestDate, selected, cancellationToken);
 
     return new DailyDigestBuildResult(
@@ -196,17 +197,23 @@ public sealed class DailyDigestService(
     return emails.Where(email => ids.Contains(email.CandidateId)).ToList();
   }
 
-  private static string BuildEmptyDigest(DateOnly digestDate)
+  private async Task<string> BuildEmptyDigest(
+    DateOnly digestDate,
+    CancellationToken cancellationToken)
   {
-    return $"""
-      # Release Digest for {digestDate:yyyy-MM-dd}
+    var emptyDigestPrompt = BuildEmptyDigestPrompt(digestDate);
 
-      ## Highlights
-      - No release mails were selected for this day.
+    logger.LogInformation(
+      "Running empty daily digest generation with model {Model}. DigestDate={DigestDate}, PromptLength={PromptLength}.",
+      llmSettings.FastModel,
+      digestDate,
+      emptyDigestPrompt.Length);
 
-      ## Releases
-      - No release entries.
-      """;
+    var digestResult = await llmClient.Generate(
+      new LlmGenerateRequest(llmSettings.FastModel, emptyDigestPrompt),
+      cancellationToken);
+
+    return digestResult.Response;
   }
 
   private static string Truncate(string value, int maxLength)
@@ -341,40 +348,57 @@ public sealed class DailyDigestService(
     return -1;
   }
 
-  private static string BuildDigestPrompt(DateOnly digestDate, IReadOnlyList<DailyDigestEmail> selected)
+  private string BuildEmptyDigestPrompt(DateOnly digestDate)
   {
     var stringBuilder = new StringBuilder();
-    stringBuilder.AppendLine($"Ты готовишь короткий утренний markdown-дайджест релизов за {digestDate:yyyy-MM-dd}.");
-    stringBuilder.AppendLine("Цель: помочь быстро понять самые важные изменения за день без чтения всех писем.");
-    stringBuilder.AppendLine("Верни только markdown, без пояснений вне структуры.");
-    stringBuilder.AppendLine("Структура ответа строго такая:");
-    stringBuilder.AppendLine($"# Release Digest for {digestDate:yyyy-MM-dd}");
+    stringBuilder.AppendLine($"Create a short markdown daily release digest for {digestDate:yyyy-MM-dd} when no release emails were selected.");
+    stringBuilder.AppendLine($"Write the final digest in {dailyDigestSettings.OutputLanguage}.");
+    stringBuilder.AppendLine($"All headings and bullet points must be in {dailyDigestSettings.OutputLanguage}. Do not mix languages in the final digest.");
+    stringBuilder.AppendLine("Return markdown only.");
+    stringBuilder.AppendLine("Use this exact logical structure with localized headings:");
+    stringBuilder.AppendLine($"- digest title for {digestDate:yyyy-MM-dd}");
+    stringBuilder.AppendLine("- highlights section with one short bullet saying no release emails were selected for this day");
+    stringBuilder.AppendLine("- releases section with one short bullet saying there are no release entries for this day");
+
+    return stringBuilder.ToString();
+  }
+
+  private string BuildDigestPrompt(DateOnly digestDate, IReadOnlyList<DailyDigestEmail> selected)
+  {
+    var stringBuilder = new StringBuilder();
+    stringBuilder.AppendLine($"You are preparing a short morning markdown release digest for {digestDate:yyyy-MM-dd}.");
+    stringBuilder.AppendLine("Goal: help the reader quickly understand the most important changes of the day without reading every email.");
+    stringBuilder.AppendLine($"Write the final digest in {dailyDigestSettings.OutputLanguage}.");
+    stringBuilder.AppendLine($"All headings and bullet points must be in {dailyDigestSettings.OutputLanguage}. Do not mix languages in the final digest.");
+    stringBuilder.AppendLine("Return markdown only, with no explanations outside the document.");
+    stringBuilder.AppendLine("The markdown structure must be:");
+    stringBuilder.AppendLine($"# <localized digest title for {digestDate:yyyy-MM-dd}>");
     stringBuilder.AppendLine();
-    stringBuilder.AppendLine("## Highlights");
-    stringBuilder.AppendLine("- максимум 3 коротких пункта с самым важным за день.");
+    stringBuilder.AppendLine("## <localized highlights heading>");
+    stringBuilder.AppendLine("- maximum 3 short bullets with the most important changes of the day.");
     stringBuilder.AppendLine();
-    stringBuilder.AppendLine("## Releases");
+    stringBuilder.AppendLine("## <localized releases heading>");
     stringBuilder.AppendLine("### Product or Service - Version");
-    stringBuilder.AppendLine("- 1-2 коротких полезных пункта по сути изменений.");
+    stringBuilder.AppendLine("- 1-2 short useful bullets about the actual substance of the change.");
     stringBuilder.AppendLine();
-    stringBuilder.AppendLine("Правила:");
-    stringBuilder.AppendLine("- Не выдумывай версии, детали или причины важности, которых нет в письмах.");
-    stringBuilder.AppendLine("- Не добавляй source, from, date, ссылки, release notes, docker-образы, пути к файлам, порталы, номера задач, work item id и другой служебный шум.");
-    stringBuilder.AppendLine("- Не используй эмодзи, маркетинговый стиль и слова вроде 'срочно', 'критично' или 'важно', если это не следует напрямую из письма.");
-    stringBuilder.AppendLine("- Не повторяй один и тот же факт дословно в Highlights и Releases.");
-    stringBuilder.AppendLine("- Если в письме только факт выхода версии без деталей, так и напиши кратко: версия вышла, подробности в письме не раскрыты.");
-    stringBuilder.AppendLine("- Объединяй связанные письма в один блок, если это один продукт или одна версия, например продукт и его installer.");
-    stringBuilder.AppendLine("- Если за день есть много однотипных сервисных обновлений с одинаковым security fix, сгруппируй их в один общий блок вместо длинного списка почти одинаковых секций.");
-    stringBuilder.AppendLine("- Для каждого блока сначала пытайся выделить пользовательский эффект, исправление или суть изменения. Артефакты поставки и инфраструктурные детали упоминай только если это единственная полезная информация в письме.");
-    stringBuilder.AppendLine("- Не делай отдельный highlight только про наличие ссылки, release notes, веб-клиента или артефактов поставки.");
-    stringBuilder.AppendLine("- Если есть основная версия продукта и отдельное письмо про installer, опиши это как один релиз и коротко упомяни, что вместе с ним обновлен installer.");
-    stringBuilder.AppendLine("- Не пиши фразы вроде 'веб-клиент доступен по ссылке', 'подробности в release notes', 'доступны пакеты/образы/утилиты' и другие формулировки про доставку артефактов, если это не единственная содержательная информация письма.");
-    stringBuilder.AppendLine("- Если письмо почти целиком про ссылку, release notes, портал релизов, установочные пакеты или Docker-образы, не выноси это в digest. Вместо этого кратко зафиксируй сам факт выхода версии, если он действительно был.");
-    stringBuilder.AppendLine("- Если письмо сообщает о новой версии продукта, а остальной текст сводится к ссылке, веб-клиенту или способу доступа, оставь только факт обновления версии без упоминания ссылки, веб-клиента и доступности.");
-    stringBuilder.AppendLine("- Для Highlights выбирай только то, что отвечает на вопрос 'что реально изменилось за день?'. Не добавляй туда доступность артефактов, installer, ссылки или web client availability.");
-    stringBuilder.AppendLine("- В разделе Releases должно быть не больше 5 секций. Оставляй только самые полезные для чтения утром.");
+    stringBuilder.AppendLine("Rules:");
+    stringBuilder.AppendLine("- Do not invent versions, details, or reasons for importance that are not present in the emails.");
+    stringBuilder.AppendLine("- Do not add source, from, date, links, release notes, docker images, file paths, portals, task numbers, work item ids, or other delivery noise.");
+    stringBuilder.AppendLine("- Do not use emoji, marketing language, or words like 'urgent', 'critical', or 'important' unless the email explicitly supports that wording.");
+    stringBuilder.AppendLine("- Do not repeat the same fact verbatim in both Highlights and Releases.");
+    stringBuilder.AppendLine("- If an email only announces that a version was released but does not describe the changes, say that briefly and honestly.");
+    stringBuilder.AppendLine("- Merge related emails into one block when they describe the same product or the same version, for example a product release and its installer.");
+    stringBuilder.AppendLine("- If the day contains many similar service updates with the same security fix, group them into one shared block instead of a long list of nearly identical sections.");
+    stringBuilder.AppendLine("- For each release block, first prefer the user-visible effect, the fix, or the substance of the change. Mention delivery artifacts and infrastructure details only if they are the only useful information in the email.");
+    stringBuilder.AppendLine("- Do not create a separate highlight just because a link, release notes, a web client, or delivery artifacts are available.");
+    stringBuilder.AppendLine("- If there is a main product version and a separate installer email for the same version, describe them as one release and mention the installer briefly.");
+    stringBuilder.AppendLine("- Do not write phrases like 'the web client is available via the link', 'details are available in release notes', or 'packages/images/utilities are available' unless that is the only substantive information in the email.");
+    stringBuilder.AppendLine("- If an email is mostly about links, release notes, a release portal, installation packages, or docker images, do not surface that as digest content. Instead, briefly record the version release itself if that is the real event.");
+    stringBuilder.AppendLine("- If an email announces a new product version and the rest of the text is just about a link, a web client, or access instructions, keep only the fact of the version update and omit the link, web client, and availability wording.");
+    stringBuilder.AppendLine("- For Highlights, only choose items that answer the question 'what actually changed today?'. Do not include artifact availability, installer availability, links, or web client availability.");
+    stringBuilder.AppendLine("- The Releases section must contain no more than 5 sections. Keep only the items that are most useful for a quick morning read.");
     stringBuilder.AppendLine();
-    stringBuilder.AppendLine("Письма:");
+    stringBuilder.AppendLine("Emails:");
 
     foreach (var email in selected)
     {
@@ -391,33 +415,35 @@ public sealed class DailyDigestService(
     return stringBuilder.ToString();
   }
 
-  private static string BuildDigestMergePrompt(DateOnly digestDate, IReadOnlyList<string> partialDigests)
+  private string BuildDigestMergePrompt(DateOnly digestDate, IReadOnlyList<string> partialDigests)
   {
     var stringBuilder = new StringBuilder();
-    stringBuilder.AppendLine($"Объедини частичные markdown-дайджесты релизов за {digestDate:yyyy-MM-dd} в один итоговый markdown-документ.");
-    stringBuilder.AppendLine("Убери дубли, сократи шум и оставь только то, что полезно прочитать утром.");
-    stringBuilder.AppendLine("Сохрани строгую структуру:");
-    stringBuilder.AppendLine($"# Release Digest for {digestDate:yyyy-MM-dd}");
-    stringBuilder.AppendLine("## Highlights");
-    stringBuilder.AppendLine("## Releases");
+    stringBuilder.AppendLine($"Merge partial markdown release digests for {digestDate:yyyy-MM-dd} into one final markdown document.");
+    stringBuilder.AppendLine("Remove duplicates, cut noise, and keep only what is useful for a quick morning read.");
+    stringBuilder.AppendLine($"Write the final digest in {dailyDigestSettings.OutputLanguage}.");
+    stringBuilder.AppendLine($"All headings and bullet points must be in {dailyDigestSettings.OutputLanguage}. Do not mix languages in the final digest.");
+    stringBuilder.AppendLine("Keep this structure:");
+    stringBuilder.AppendLine($"# <localized digest title for {digestDate:yyyy-MM-dd}>");
+    stringBuilder.AppendLine("## <localized highlights heading>");
+    stringBuilder.AppendLine("## <localized releases heading>");
     stringBuilder.AppendLine("### Product or Service - Version");
     stringBuilder.AppendLine("- ...");
     stringBuilder.AppendLine();
-    stringBuilder.AppendLine("Правила:");
-    stringBuilder.AppendLine("- Максимум 3 highlights.");
-    stringBuilder.AppendLine("- Максимум 5 release sections.");
-    stringBuilder.AppendLine("- Объединяй related entries про один продукт, одну версию или одну волну однотипных security updates.");
-    stringBuilder.AppendLine("- Если несколько сервисов обновлены одинаковым security fix в один день, сведи их в один общий блок вроде platform services / security updates.");
-    stringBuilder.AppendLine("- Не добавляй source, from, date, ссылки, release notes, docker-образы, пути к файлам, номера задач, эмодзи и служебный шум.");
-    stringBuilder.AppendLine("- Не повторяй одинаковые факты в нескольких секциях.");
-    stringBuilder.AppendLine("- Если подробностей мало, пиши кратко и честно.");
-    stringBuilder.AppendLine("- Предпочитай смысл изменения, а не артефакты поставки. Не делай highlight'ы про ссылки, release notes и docker-образы.");
-    stringBuilder.AppendLine("- Если есть версия продукта и отдельно installer той же версии, оставь один объединенный блок.");
-    stringBuilder.AppendLine("- Удаляй фразы про 'веб-клиент доступен по ссылке', 'подробности в release notes', 'доступны пакеты/образы/утилиты', если они не описывают суть изменения.");
-    stringBuilder.AppendLine("- Если в итоговом тексте осталась только информация про ссылки, портал релизов, release notes или артефакты поставки, сократи ее до простого факта выхода версии либо выброси как шум.");
-    stringBuilder.AppendLine("- Если блок про продукт по сути говорит только 'вышла новая версия, доступен веб-клиент/ссылка', перепиши его в краткий факт обновления версии без упоминания ссылки, веб-клиента и доступности.");
+    stringBuilder.AppendLine("Rules:");
+    stringBuilder.AppendLine("- Maximum 3 highlights.");
+    stringBuilder.AppendLine("- Maximum 5 release sections.");
+    stringBuilder.AppendLine("- Merge related entries about the same product, the same version, or one wave of similar security updates.");
+    stringBuilder.AppendLine("- If multiple services were updated with the same security fix on the same day, collapse them into one shared block such as platform services / security updates.");
+    stringBuilder.AppendLine("- Do not add source, from, date, links, release notes, docker images, file paths, task numbers, emoji, or delivery noise.");
+    stringBuilder.AppendLine("- Do not repeat the same facts across multiple sections.");
+    stringBuilder.AppendLine("- If details are sparse, be short and honest.");
+    stringBuilder.AppendLine("- Prefer the substance of the change, not delivery artifacts. Do not create highlights about links, release notes, or docker images.");
+    stringBuilder.AppendLine("- If there is a product version and a separate installer entry for the same version, keep one combined block.");
+    stringBuilder.AppendLine("- Remove phrases like 'the web client is available via the link', 'details are available in release notes', or 'packages/images/utilities are available' when they do not describe the actual change.");
+    stringBuilder.AppendLine("- If a block only conveys links, release portal references, release notes, or delivery artifacts, reduce it to the plain fact of the version release or drop it as noise.");
+    stringBuilder.AppendLine("- If a product block basically says only 'a new version was released and a web client/link is available', rewrite it as a short fact about the version update and omit the link, web client, and availability wording.");
     stringBuilder.AppendLine();
-    stringBuilder.AppendLine("Частичные дайджесты:");
+    stringBuilder.AppendLine("Partial digests:");
 
     foreach (var partialDigest in partialDigests)
     {
@@ -431,10 +457,10 @@ public sealed class DailyDigestService(
   private static string BuildClassifierPrompt(IReadOnlyList<DailyDigestEmail> emails)
   {
     var stringBuilder = new StringBuilder();
-    stringBuilder.AppendLine("Ты фильтр входящей почты. Выбери письма, которые относятся к релизам, выходу версий или заметным обновлениям сервисов.");
-    stringBuilder.AppendLine("Верни ТОЛЬКО список чисел (Id) через запятую, без текста. Если релизных нет - верни пустую строку.");
+    stringBuilder.AppendLine("You are an inbox filter. Select the emails that are about product releases, version announcements, or notable service updates.");
+    stringBuilder.AppendLine("Return ONLY a comma-separated list of numeric Id values, with no extra text. If there are no release emails, return an empty string.");
     stringBuilder.AppendLine();
-    stringBuilder.AppendLine("Письма:");
+    stringBuilder.AppendLine("Emails:");
 
     foreach (var email in emails)
     {

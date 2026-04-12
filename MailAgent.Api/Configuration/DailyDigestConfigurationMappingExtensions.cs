@@ -1,4 +1,5 @@
 using MailAgent.Api.BackgroundServices;
+using MailAgent.Application.Digest;
 
 namespace MailAgent.Api.Configuration;
 
@@ -26,5 +27,14 @@ internal static class DailyDigestConfigurationMappingExtensions
       Folder: configuration.Folder!.Trim(),
       InitialBackfillPeriod: TimeSpan.Parse(configuration.InitialBackfillPeriod!),
       GenerateAfter: TimeOnly.Parse(configuration.GenerateAfter!));
+  }
+
+  internal static DailyDigestSettings ToDigestSettings(this DailyDigestConfiguration configuration)
+  {
+    var outputLanguage = string.IsNullOrWhiteSpace(configuration.OutputLanguage)
+      ? "English"
+      : configuration.OutputLanguage.Trim();
+
+    return new DailyDigestSettings(outputLanguage);
   }
 }
