@@ -22,10 +22,6 @@
       MailServer__Username: ${MAIL_USERNAME}
       MailServer__Password: ${MAIL_PASSWORD}
       
-      MailServer__Imap__Host: ${MAIL_IMAP_HOST}
-      MailServer__Imap__Port: ${MAIL_IMAP_PORT}
-      MailServer__Imap__Security: ${MAIL_IMAP_SECURITY}
-      
       MailServer__Ews__Url: ${MAIL_EWS_URL}
       MailServer__Ews__Domain: ${MAIL_EWS_DOMAIN}
     depends_on:
