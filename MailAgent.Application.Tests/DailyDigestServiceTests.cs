@@ -79,6 +79,16 @@ public class DailyDigestServiceTests
       Assert.That(requests[1].Prompt, Does.Not.Contain("Subject: General update"));
       Assert.That(requests[1].Prompt, Does.Contain($"Body preview: {new string('a', 1500)}"));
       Assert.That(requests[1].Prompt, Does.Not.Contain(new string('a', 1501)));
+      Assert.That(requests[1].Prompt, Does.Contain("Не добавляй source"));
+      Assert.That(requests[1].Prompt, Does.Contain("Не используй эмодзи"));
+      Assert.That(requests[1].Prompt, Does.Contain("не больше 5 секций"));
+      Assert.That(requests[1].Prompt, Does.Contain("release notes"));
+      Assert.That(requests[1].Prompt, Does.Contain("docker-образы"));
+      Assert.That(requests[1].Prompt, Does.Contain("Если есть основная версия продукта и отдельное письмо про installer"));
+      Assert.That(requests[1].Prompt, Does.Contain("Не пиши фразы вроде 'веб-клиент доступен по ссылке'"));
+      Assert.That(requests[1].Prompt, Does.Contain("Если письмо почти целиком про ссылку"));
+      Assert.That(requests[1].Prompt, Does.Contain("Если письмо сообщает о новой версии продукта, а остальной текст сводится к ссылке"));
+      Assert.That(requests[1].Prompt, Does.Contain("что реально изменилось за день?"));
     });
   }
 
@@ -114,6 +124,67 @@ public class DailyDigestServiceTests
     });
 
     await _llmClient.Received(1).Generate(Arg.Any<LlmGenerateRequest>(), Arg.Any<CancellationToken>());
+  }
+
+  [Test]
+  public async Task BuildForDate_PrefersVersionChangesSectionOverGeneralInfoNoise()
+  {
+    // Given.
+    var digestDate = new DateOnly(2026, 4, 9);
+    const string folderName = "Releases";
+    using var cancellationTokenSource = new CancellationTokenSource();
+    var cancellationToken = cancellationTokenSource.Token;
+
+    var noisyPrefix = string.Join(
+      "\n",
+      Enumerable.Repeat("Docker-образ example.internal/acme-proxy:2.3.7.0", 40));
+
+    var markdownBody =
+      $$"""
+        # Общая информация
+
+        {{noisyPrefix}}
+
+        # Зависимости версии
+
+        Identity Service: 2.4.28.21
+        Message Broker: 2.5.10.0
+
+        # Изменения версии
+
+        ## Общие
+
+        Исправлена работа с обновлением потока выпуска сертификата в БД.
+        """;
+
+    _mailRepository
+      .GetByUtcRangeFromFolder(
+        folderName,
+        DateTimeOffset.Parse("2026-04-09T00:00:00Z"),
+        DateTimeOffset.Parse("2026-04-10T00:00:00Z"),
+        cancellationToken)
+      .Returns([CreateStoredMail(subject: "Acme Proxy. Вышла версия 2.3.7.0", markdownBody: markdownBody)]);
+
+    var requests = new List<LlmGenerateRequest>();
+
+    _llmClient
+      .Generate(Arg.Do<LlmGenerateRequest>(request => requests.Add(request)), cancellationToken)
+      .Returns(
+        new LlmGenerateResponse("1"),
+        new LlmGenerateResponse("# Release Digest for 2026-04-09\n\n## Highlights\n- Test"));
+
+    // When.
+    await _sut.BuildForDate(folderName, digestDate, cancellationToken);
+
+    // Then.
+    Assert.That(requests, Has.Count.EqualTo(2));
+    Assert.Multiple(() =>
+    {
+      Assert.That(requests[1].Prompt, Does.Contain("# Изменения версии"));
+      Assert.That(requests[1].Prompt, Does.Contain("Исправлена работа с обновлением потока выпуска сертификата в БД."));
+      Assert.That(requests[1].Prompt, Does.Not.Contain("Identity Service: 2.4.28.21"));
+      Assert.That(requests[1].Prompt, Does.Not.Contain("Docker-образ example.internal/acme-proxy:2.3.7.0"));
+    });
   }
 
   private StoredMail CreateStoredMail(
