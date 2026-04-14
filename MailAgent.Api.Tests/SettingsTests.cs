@@ -203,6 +203,31 @@ public class SettingsTests
   }
 
   [Test]
+  public void AddValidatedConfiguration_Throws_WhenDailyDigestEnabledWithUnsupportedOutputLanguage()
+  {
+    // Given.
+    var services = new ServiceCollection();
+    var configurationValues = CreateValidConfigurationValues();
+    configurationValues["DailyDigest:Enabled"] = "true";
+    configurationValues["DailyDigest:RunOnStartup"] = "true";
+    configurationValues["DailyDigest:Interval"] = "01:00:00";
+    configurationValues["DailyDigest:Folder"] = "Releases";
+    configurationValues["DailyDigest:GenerateAfter"] = "08:00:00";
+    configurationValues["DailyDigest:InitialBackfillPeriod"] = "7.00:00:00";
+    configurationValues["DailyDigest:OutputLanguage"] = "German";
+    var configuration = BuildConfiguration(configurationValues);
+
+    // When.
+    services.AddValidatedConfiguration(configuration);
+    using var serviceProvider = services.BuildServiceProvider();
+    var act = () => serviceProvider.GetRequiredService<DailyDigestBackgroundSettings>();
+
+    // Then.
+    Assert.That(act, Throws.TypeOf<OptionsValidationException>()
+      .With.Message.Contains("OutputLanguage must be either 'Russian' or 'English'."));
+  }
+
+  [Test]
   public void AddValidatedConfiguration_Throws_WhenImapSecurityIsInvalid()
   {
     // Given.

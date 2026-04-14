@@ -44,7 +44,9 @@ internal sealed class DailyDigestConfigurationValidator : AbstractValidator<Dail
         .Cascade(CascadeMode.Stop)
         .NotEmpty()
         .WithName(nameof(DailyDigestConfiguration.OutputLanguage))
-        .WithMessage("{PropertyName} configuration is missing.");
+        .WithMessage("{PropertyName} configuration is missing.")
+        .Must(BeSupportedOutputLanguage)
+        .WithMessage("{PropertyName} must be either 'Russian' or 'English'.");
 
       RuleFor(configuration => configuration.InitialBackfillPeriod)
         .Cascade(CascadeMode.Stop)
@@ -69,5 +71,16 @@ internal sealed class DailyDigestConfigurationValidator : AbstractValidator<Dail
   private static bool IsEnabled(DailyDigestConfiguration configuration)
   {
     return bool.TryParse(configuration.Enabled, out var enabled) && enabled;
+  }
+
+  private static bool BeSupportedOutputLanguage(string? outputLanguage)
+  {
+    if (string.IsNullOrWhiteSpace(outputLanguage))
+    {
+      return false;
+    }
+
+    return string.Equals(outputLanguage.Trim(), "Russian", StringComparison.OrdinalIgnoreCase)
+      || string.Equals(outputLanguage.Trim(), "English", StringComparison.OrdinalIgnoreCase);
   }
 }
