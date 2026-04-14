@@ -25,6 +25,11 @@
 
     // BlazorBootstrap Markdown does not reliably start a list when the first marker
     // comes immediately after a heading, so we insert an empty line in that case.
-    return HeadingListRegex.Replace(normalized, "$1\n$2");
+    normalized = HeadingListRegex.Replace(normalized, "$1\n$2");
+
+    // Daily digests may contain raw technical identifiers like snake_case names
+    // or file paths with underscores. Escaping underscores here keeps the
+    // markdown renderer from turning those fragments into accidental italics.
+    return normalized.Replace("_", "\\_");
   }
 }

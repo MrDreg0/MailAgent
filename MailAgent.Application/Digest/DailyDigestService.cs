@@ -14,7 +14,8 @@ public sealed class DailyDigestService(
 {
   private const int ClassifierBatchSize = 50;
   private const int DigestBatchSize = 5;
-  private const int BodyPreviewMaxLength = 1500;
+  private const int DigestInputMaxLength = 1500;
+  private const int NormalizationInputMaxLength = 6000;
 
   public async Task<DailyDigestBuildResult> BuildForDate(
     string folderName,
@@ -37,13 +38,15 @@ public sealed class DailyDigestService(
 
     emails.AddRange(
       from message in storedMails
-      let bodyPreview = BuildBodyPreview(message.MarkdownBody)
+      let digestInput = BuildInput(message.MarkdownBody, DigestInputMaxLength)
+      let normalizationInput = BuildInput(message.MarkdownBody, NormalizationInputMaxLength)
       select new DailyDigestEmail(
         CandidateId: candidateId++,
         Subject: message.Subject,
         From: message.From,
         DateUtc: message.DateUtc.UtcDateTime,
-        BodyPreview: bodyPreview));
+        DigestInput: digestInput,
+        NormalizationInput: normalizationInput));
 
     var selected = await SelectReleaseEmails(emails, cancellationToken);
     var digestMarkdown = selected.Count == 0
@@ -63,15 +66,17 @@ public sealed class DailyDigestService(
     IReadOnlyList<DailyDigestEmail> selected,
     CancellationToken cancellationToken)
   {
-    if (selected.Count <= DigestBatchSize)
+    var normalized = await NormalizeSelectedEmails(selected, digestDate, cancellationToken);
+
+    if (normalized.Count <= DigestBatchSize)
     {
-      return await GenerateDigest(digestDate, BuildDigestPrompt(digestDate, selected), selected.Count, cancellationToken);
+      return await GenerateDigest(digestDate, BuildDigestPrompt(digestDate, normalized), normalized.Count, cancellationToken);
     }
 
     var partialDigests = new List<string>();
     var batchIndex = 0;
 
-    foreach (var batch in selected.Chunk(DigestBatchSize))
+    foreach (var batch in normalized.Chunk(DigestBatchSize))
     {
       batchIndex++;
 
@@ -181,6 +186,36 @@ public sealed class DailyDigestService(
     return emails.Where(email => ids.Contains(email.CandidateId)).ToList();
   }
 
+  private async Task<IReadOnlyList<DailyDigestEmail>> NormalizeSelectedEmails(
+    IReadOnlyList<DailyDigestEmail> selected,
+    DateOnly digestDate,
+    CancellationToken cancellationToken)
+  {
+    var normalized = new List<DailyDigestEmail>(selected.Count);
+
+    foreach (var email in selected)
+    {
+      var prompt = BuildNormalizationPrompt(email);
+
+      logger.LogInformation(
+        "Running daily digest normalization with model {Model}. DigestDate={DigestDate}, CandidateId={CandidateId}, PromptLength={PromptLength}.",
+        llmSettings.FastModel,
+        digestDate,
+        email.CandidateId,
+        prompt.Length);
+
+      var response = await llmClient.Generate(
+        new LlmGenerateRequest(llmSettings.FastModel, prompt),
+        cancellationToken);
+
+      var normalizedSummary = ParseNormalizedSummaryOrFallback(response.Response, email.DigestInput);
+
+      normalized.Add(email with { DigestInput = normalizedSummary });
+    }
+
+    return normalized;
+  }
+
   private async Task<string> BuildEmptyDigest(
     DateOnly digestDate,
     CancellationToken cancellationToken)
@@ -203,14 +238,27 @@ public sealed class DailyDigestService(
   private static string Truncate(string value, int maxLength)
     => value.Length <= maxLength ? value : value[..maxLength];
 
-  private static string BuildBodyPreview(string markdownBody)
+  private static string BuildInput(string markdownBody, int maxLength)
   {
     if (string.IsNullOrWhiteSpace(markdownBody))
     {
       return string.Empty;
     }
 
-    return Truncate(markdownBody.Replace("\r\n", "\n").Trim(), BodyPreviewMaxLength).Trim();
+    return Truncate(markdownBody.Replace("\r\n", "\n").Trim(), maxLength).Trim();
+  }
+
+  private static string ParseNormalizedSummaryOrFallback(
+    string normalizedResponse,
+    string fallbackDigestInput)
+  {
+    var normalized = normalizedResponse
+      .Replace("\r\n", "\n")
+      .Trim();
+
+    return string.IsNullOrWhiteSpace(normalized)
+      ? fallbackDigestInput
+      : normalized;
   }
 
   private string BuildEmptyDigestPrompt(DateOnly digestDate)
@@ -233,6 +281,20 @@ public sealed class DailyDigestService(
       {
         ["DIGEST_DATE"] = digestDate.ToString("yyyy-MM-dd"),
         ["EMAILS"] = BuildEmailsBlock(selected)
+      });
+  }
+
+  private string BuildNormalizationPrompt(DailyDigestEmail email)
+  {
+    return DailyDigestPromptTemplateLoader.Render(
+      templateName: "DailyDigest.Normalize",
+      outputLanguage: dailyDigestSettings.OutputLanguage,
+      placeholders: new Dictionary<string, string>
+      {
+        ["SUBJECT"] = email.Subject,
+        ["FROM"] = email.From,
+        ["DATE_UTC"] = email.DateUtc.ToString("yyyy-MM-dd HH:mm"),
+        ["BODY_PREVIEW"] = email.NormalizationInput
       });
   }
 
@@ -269,9 +331,9 @@ public sealed class DailyDigestService(
       lines.Add($"Subject: {email.Subject}");
       lines.Add($"From: {email.From}");
       lines.Add($"Date: {email.DateUtc:yyyy-MM-dd HH:mm}Z");
-      if (!string.IsNullOrWhiteSpace(email.BodyPreview))
+      if (!string.IsNullOrWhiteSpace(email.DigestInput))
       {
-        lines.Add($"Body preview: {email.BodyPreview}");
+        lines.Add($"Normalized summary: {email.DigestInput}");
       }
     }
 
@@ -303,5 +365,6 @@ public sealed class DailyDigestService(
     string Subject,
     string From,
     DateTime DateUtc,
-    string BodyPreview);
+    string DigestInput,
+    string NormalizationInput);
 }

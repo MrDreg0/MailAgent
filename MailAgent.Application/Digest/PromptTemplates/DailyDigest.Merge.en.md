@@ -20,6 +20,8 @@ Rules:
 - Remove phrases like "the web client is available via the link", "details are available in release notes", or "packages/images/utilities are available" when they do not describe the actual change.
 - If a block only conveys links, release portal references, release notes, or delivery artifacts, reduce it to the plain fact of the version release or drop it as noise.
 - If a product block basically says only "a new version was released and a web client/link is available", rewrite it as a short fact about the version update and omit the link, web client, and availability wording.
+- Do not surface raw snake_case / CamelCase / test-style identifiers, table names, file names, method names, or internal class names when the meaning can be explained in plain human language.
+- Even if input partial digests still contain internal identifiers, rewrite them into a clear description of the user-visible effect, fix, or behavior change.
 
 Partial digests:
 {{PARTIAL_DIGESTS}}

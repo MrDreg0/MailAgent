@@ -28,6 +28,8 @@ Rules:
 - If an email announces a new product version and the rest of the text is just about a link, a web client, or access instructions, keep only the fact of the version update and omit the link, web client, and availability wording.
 - For Highlights, only choose items that answer the question "what actually changed today?". Do not include artifact availability, installer availability, links, or web client availability.
 - The Releases section must contain no more than 5 sections. Keep only the items that are most useful for a quick morning read.
+- Do not surface raw snake_case / CamelCase / test-style identifiers, table names, file names, method names, or internal class names when the meaning can be explained in plain human language.
+- Even if an input normalized summary still contains internal identifiers, rewrite them into a clear description of the user-visible effect, fix, or behavior change.
 
 Emails:
 {{EMAILS}}

@@ -43,7 +43,7 @@ public class DailyDigestServiceTests
     var storedMails = new[]
     {
       CreateStoredMail(subject: "General update", markdownBody: "noise"),
-      CreateStoredMail(subject: "Product release", markdownBody: new string('a', 1605))
+      CreateStoredMail(subject: "Product release", markdownBody: new string('a', 6105))
     };
 
     _mailRepository
@@ -60,6 +60,7 @@ public class DailyDigestServiceTests
       .Generate(Arg.Do<LlmGenerateRequest>(request => requests.Add(request)), cancellationToken)
       .Returns(
         new LlmGenerateResponse("2"),
+        new LlmGenerateResponse("- Normalized release change"),
         new LlmGenerateResponse("  # Release Digest for 2026-04-10\n\n## Highlights\n- Important release  "));
 
     // When.
@@ -79,22 +80,29 @@ public class DailyDigestServiceTests
       Assert.That(result.TotalFetched, Is.EqualTo(2));
       Assert.That(result.Selected, Is.EqualTo(1));
       Assert.That(result.DigestMarkdown, Does.StartWith("# Release Digest for 2026-04-10"));
-      Assert.That(requests, Has.Count.EqualTo(2));
+      Assert.That(requests, Has.Count.EqualTo(3));
+      Assert.That(requests[1].Prompt, Does.Contain("Выдели только содержательные изменения"));
       Assert.That(requests[1].Prompt, Does.Contain("Subject: Product release"));
       Assert.That(requests[1].Prompt, Does.Not.Contain("Subject: General update"));
-      Assert.That(requests[1].Prompt, Does.Contain($"Body preview: {new string('a', 1500)}"));
-      Assert.That(requests[1].Prompt, Does.Not.Contain(new string('a', 1501)));
-      Assert.That(requests[1].Prompt, Does.Contain("Составь короткий утренний markdown-дайджест релизов"));
-      Assert.That(requests[1].Prompt, Does.Contain("Не добавляй source"));
-      Assert.That(requests[1].Prompt, Does.Contain("Не используй эмодзи"));
-      Assert.That(requests[1].Prompt, Does.Contain("не больше 5 секций"));
-      Assert.That(requests[1].Prompt, Does.Contain("release notes"));
-      Assert.That(requests[1].Prompt, Does.Contain("docker-образы"));
-      Assert.That(requests[1].Prompt, Does.Contain("Если есть основная версия продукта и отдельное письмо про installer"));
-      Assert.That(requests[1].Prompt, Does.Contain("Не пиши фразы вроде \"веб-клиент доступен по ссылке\""));
-      Assert.That(requests[1].Prompt, Does.Contain("Если письмо почти целиком про ссылку"));
-      Assert.That(requests[1].Prompt, Does.Contain("Если письмо сообщает о новой версии продукта"));
-      Assert.That(requests[1].Prompt, Does.Contain("что реально изменилось за день?"));
+      Assert.That(requests[1].Prompt, Does.Contain($"Body preview:\n{new string('a', 6000)}"));
+      Assert.That(requests[1].Prompt, Does.Not.Contain(new string('a', 6001)));
+      Assert.That(requests[1].Prompt, Does.Contain("snake_case / CamelCase / test-style"));
+      Assert.That(requests[1].Prompt, Does.Contain("Не оставляй голый технический идентификатор"));
+      Assert.That(requests[2].Prompt, Does.Contain("Составь короткий утренний markdown-дайджест релизов"));
+      Assert.That(requests[2].Prompt, Does.Contain("Не добавляй source"));
+      Assert.That(requests[2].Prompt, Does.Contain("Не используй эмодзи"));
+      Assert.That(requests[2].Prompt, Does.Contain("не больше 5 секций"));
+      Assert.That(requests[2].Prompt, Does.Contain("release notes"));
+      Assert.That(requests[2].Prompt, Does.Contain("docker-образы"));
+      Assert.That(requests[2].Prompt, Does.Contain("Если есть основная версия продукта и отдельное письмо про installer"));
+      Assert.That(requests[2].Prompt, Does.Contain("Не пиши фразы вроде \"веб-клиент доступен по ссылке\""));
+      Assert.That(requests[2].Prompt, Does.Contain("Если письмо почти целиком про ссылку"));
+      Assert.That(requests[2].Prompt, Does.Contain("Если письмо сообщает о новой версии продукта"));
+      Assert.That(requests[2].Prompt, Does.Contain("snake_case / CamelCase / test-style"));
+      Assert.That(requests[2].Prompt, Does.Contain("Даже если во входном normalized summary остались внутренние идентификаторы"));
+      Assert.That(requests[2].Prompt, Does.Contain("что реально изменилось за день?"));
+      Assert.That(requests[2].Prompt, Does.Contain("Normalized summary: - Normalized release change"));
+      Assert.That(requests[2].Prompt, Does.Not.Contain($"Normalized summary: {new string('a', 6000)}"));
     });
   }
 
@@ -179,20 +187,22 @@ public class DailyDigestServiceTests
       .Generate(Arg.Do<LlmGenerateRequest>(request => requests.Add(request)), cancellationToken)
       .Returns(
         new LlmGenerateResponse("1"),
+        new LlmGenerateResponse("- Исправлена работа с обновлением потока выпуска сертификата в БД."),
         new LlmGenerateResponse("# Release Digest for 2026-04-09\n\n## Highlights\n- Test"));
 
     // When.
     await _sut.BuildForDate(folderName, digestDate, cancellationToken);
 
     // Then.
-    Assert.That(requests, Has.Count.EqualTo(2));
+    Assert.That(requests, Has.Count.EqualTo(3));
     Assert.Multiple(() =>
     {
-      Assert.That(requests[1].Prompt, Does.Contain("# Изменения версии"));
-      Assert.That(requests[1].Prompt, Does.Contain("раздел `# Изменения версии` или `# Version Changes`"));
-      Assert.That(requests[1].Prompt, Does.Contain("Body preview: # Общая информация"));
+      Assert.That(requests[1].Prompt, Does.Contain("Выдели только содержательные изменения"));
+      Assert.That(requests[1].Prompt, Does.Contain("Body preview:"));
       Assert.That(requests[1].Prompt, Does.Contain("Docker-образ example.internal/acme-proxy:2.3.7.0"));
-      Assert.That(requests[1].Prompt, Does.Not.Contain("Исправлена работа с обновлением потока выпуска сертификата в БД."));
+      Assert.That(requests[1].Prompt, Does.Contain("Исправлена работа с обновлением потока выпуска сертификата в БД."));
+      Assert.That(requests[2].Prompt, Does.Contain("Normalized summary: - Исправлена работа с обновлением потока выпуска сертификата в БД."));
+      Assert.That(requests[2].Prompt, Does.Not.Contain("Normalized summary: # Общая информация"));
     });
   }
 
@@ -236,20 +246,59 @@ public class DailyDigestServiceTests
       .Generate(Arg.Do<LlmGenerateRequest>(request => requests.Add(request)), cancellationToken)
       .Returns(
         new LlmGenerateResponse("1"),
+        new LlmGenerateResponse("- Certificate issuance flow update in the database."),
         new LlmGenerateResponse("# Release Digest for 2026-04-09\n\n## Highlights\n- Test"));
 
     // When.
     await englishSut.BuildForDate(folderName, digestDate, cancellationToken);
 
     // Then.
-    Assert.That(requests, Has.Count.EqualTo(2));
+    Assert.That(requests, Has.Count.EqualTo(3));
     Assert.Multiple(() =>
     {
-      Assert.That(requests[1].Prompt, Does.Contain("`# Изменения версии` or `# Version Changes`"));
-      Assert.That(requests[1].Prompt, Does.Contain("Body preview: # General Information"));
-      Assert.That(requests[1].Prompt, Does.Contain("Certificate issuance flow update in the database."));
+      Assert.That(requests[1].Prompt, Does.Contain("Extract only the meaningful changes"));
+      Assert.That(requests[1].Prompt, Does.Contain("Body preview:"));
       Assert.That(requests[1].Prompt, Does.Contain("Docker images and packages."));
+      Assert.That(requests[1].Prompt, Does.Contain("Certificate issuance flow update in the database."));
+      Assert.That(requests[2].Prompt, Does.Contain("Normalized summary: - Certificate issuance flow update in the database."));
+      Assert.That(requests[2].Prompt, Does.Not.Contain("Normalized summary: # General Information"));
     });
+  }
+
+  [Test]
+  public async Task BuildForDate_FallsBackToOriginalPreview_WhenNormalizationReturnsEmptyText()
+  {
+    // Given.
+    var digestDate = new DateOnly(2026, 4, 10);
+    const string folderName = "Releases";
+    using var cancellationTokenSource = new CancellationTokenSource();
+    var cancellationToken = cancellationTokenSource.Token;
+
+    _mailRepository
+      .GetByUtcRangeFromFolder(
+        folderName,
+        DateTimeOffset.Parse("2026-04-10T00:00:00Z"),
+        DateTimeOffset.Parse("2026-04-11T00:00:00Z"),
+        cancellationToken)
+      .Returns([
+        CreateStoredMail(subject: "Product release", markdownBody: "Meaningful body preview")
+      ]);
+
+    var requests = new List<LlmGenerateRequest>();
+
+    _llmClient
+      .Generate(Arg.Do<LlmGenerateRequest>(request => requests.Add(request)), cancellationToken)
+      .Returns(
+        new LlmGenerateResponse("1"),
+        new LlmGenerateResponse("   "),
+        new LlmGenerateResponse("# Release Digest for 2026-04-10\n\n## Highlights\n- Test"));
+
+    // When.
+    await _sut.BuildForDate(folderName, digestDate, cancellationToken);
+
+    // Then.
+    Assert.That(requests, Has.Count.EqualTo(3));
+    Assert.That(requests[2].Prompt, Does.Contain("Normalized summary: Meaningful body preview"));
   }
 
   private StoredMail CreateStoredMail(
