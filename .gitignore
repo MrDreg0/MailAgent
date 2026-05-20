@@ -4,6 +4,8 @@
 [Dd]ebug/
 [Rr]elease/
 artifacts/
+TestResults/
+coverage/
 
 # Visual Studio
 .vs/
@@ -26,11 +28,17 @@ artifacts/
 AGENTS.md
 *env.json
 *.env
+.env.*
+!.env.example
 .playwright-cli
 designs
 
 # Build files
 *.log
+*.dump
+*.bak
+*.sqlite
+*.db
 project.lock.json
 project.fragment.lock.json
 
