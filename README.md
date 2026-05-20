@@ -209,4 +209,4 @@ Areas that are still intentionally lightweight:
 
 ## License
 
-No license has been defined yet.
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
