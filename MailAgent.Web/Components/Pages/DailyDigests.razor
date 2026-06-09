@@ -1,7 +1,9 @@
 @page "/daily-digests"
+@using System.Text.Json
 @using MailAgent.Api.Contracts
 @using MailAgent.Api.Contracts.DailyDigests
 @using MailAgent.Web.Browse
+@using Refit
 @inject DailyDigestBrowserService DailyDigestBrowserService
 @inject IMailAgentApi MailAgentApi
 
@@ -106,8 +108,12 @@
               @if (IsRegenerating(digest))
               {
                 <div class="digest-loading-state">
-                  <div class="digest-loading-dots">...</div>
-                  <div class="text-body-secondary">Regenerating digest...</div>
+                  <div class="d-flex flex-column align-items-center gap-3">
+                    <div class="digest-loading-dots">...</div>
+                    <Spinner Color="SpinnerColor.Primary" Size="SpinnerSize.Small" />
+                    <div class="fw-semibold">Regenerating digest...</div>
+                    <div class="text-body-secondary">The updated digest will appear here when generation succeeds.</div>
+                  </div>
                 </div>
               }
               else
@@ -124,6 +130,7 @@
 
 @code {
   private const string FolderName = "Releases";
+  private const int MaxErrorReasonLength = 500;
   private static readonly int[] PageSizeOptions = [10, 25, 100];
 
   private readonly HashSet<string> _regeneratingDigestKeys = [];
@@ -185,7 +192,7 @@
     }
     catch (Exception exception)
     {
-      _errorMessage = $"Failed to regenerate daily digest: {exception.Message}";
+      _errorMessage = $"Не удалось перегенерировать дайджест. {GetRegenerationErrorReason(exception)}";
     }
     finally
     {
@@ -209,6 +216,138 @@
   {
     _isSuccessMessageVisible = false;
     return Task.CompletedTask;
+  }
+
+  private static string GetRegenerationErrorReason(Exception exception)
+  {
+    var reason = exception switch
+    {
+      ApiException apiException => GetApiErrorReason(apiException),
+      TaskCanceledException taskCanceledException => GetTimeoutErrorReason(taskCanceledException),
+      _ => GetInnermostExceptionMessage(exception),
+    };
+
+    return TrimErrorReason(reason);
+  }
+
+  private static string GetApiErrorReason(ApiException exception)
+  {
+    var problemDetail = TryReadProblemDetail(exception.Content);
+
+    if (!string.IsNullOrWhiteSpace(problemDetail))
+    {
+      return problemDetail;
+    }
+
+    if (!string.IsNullOrWhiteSpace(exception.Content))
+    {
+      return exception.Content.Trim();
+    }
+
+    var statusCode = (int)exception.StatusCode;
+    var reasonPhrase = exception.ReasonPhrase;
+
+    if (!string.IsNullOrWhiteSpace(reasonPhrase))
+    {
+      return $"API returned HTTP {statusCode} ({reasonPhrase}).";
+    }
+
+    return $"API returned HTTP {statusCode}.";
+  }
+
+  private static string GetTimeoutErrorReason(TaskCanceledException exception)
+  {
+    if (!string.IsNullOrWhiteSpace(exception.Message) &&
+        exception.Message.Contains("Timeout", StringComparison.OrdinalIgnoreCase))
+    {
+      return exception.Message;
+    }
+
+    var innermostMessage = GetInnermostExceptionMessage(exception);
+
+    if (!string.IsNullOrWhiteSpace(innermostMessage))
+    {
+      return innermostMessage;
+    }
+
+    return "Request timed out.";
+  }
+
+  private static string? TryReadProblemDetail(string? content)
+  {
+    if (string.IsNullOrWhiteSpace(content))
+    {
+      return null;
+    }
+
+    try
+    {
+      using var document = JsonDocument.Parse(content);
+      var root = document.RootElement;
+
+      if (root.ValueKind != JsonValueKind.Object)
+      {
+        return null;
+      }
+
+      if (TryGetNonEmptyJsonString(root, "detail", out var detail))
+      {
+        return detail;
+      }
+
+      if (TryGetNonEmptyJsonString(root, "title", out var title))
+      {
+        return title;
+      }
+    }
+    catch (JsonException)
+    {
+      return null;
+    }
+
+    return null;
+  }
+
+  private static bool TryGetNonEmptyJsonString(JsonElement root, string propertyName, out string value)
+  {
+    value = string.Empty;
+
+    if (!root.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.String)
+    {
+      return false;
+    }
+
+    value = property.GetString()?.Trim() ?? string.Empty;
+    return value.Length > 0;
+  }
+
+  private static string GetInnermostExceptionMessage(Exception exception)
+  {
+    var currentException = exception;
+
+    while (currentException.InnerException is not null)
+    {
+      currentException = currentException.InnerException;
+    }
+
+    return currentException.Message;
+  }
+
+  private static string TrimErrorReason(string? reason)
+  {
+    if (string.IsNullOrWhiteSpace(reason))
+    {
+      return "Unknown error.";
+    }
+
+    var trimmedReason = reason.Trim();
+
+    if (trimmedReason.Length <= MaxErrorReasonLength)
+    {
+      return trimmedReason;
+    }
+
+    return $"{trimmedReason[..MaxErrorReasonLength].TrimEnd()}...";
   }
 
   private static DailyDigest ToDailyDigest(DailyDigestDocumentResponse digest)
